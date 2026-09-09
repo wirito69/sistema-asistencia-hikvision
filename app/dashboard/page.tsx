@@ -431,17 +431,12 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [isCarteleraMode]);
 
-  // Restaurar sesión de Administrador desde localStorage o parámetro URL (?admin=1)
+  // Limpiar cualquier sesión previa al cargar para asegurar que siempre inicie en Modo Pantalla Pública (TV)
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get("admin") === "1" || urlParams.get("admin") === "true" || localStorage.getItem("admin_auth") === "true") {
-          setIsAdminMode(true);
-        }
-      } catch (e) {
-        console.error("Error reading admin auth:", e);
-      }
+        localStorage.removeItem("admin_auth");
+      } catch (e) {}
     }
   }, []);
 
