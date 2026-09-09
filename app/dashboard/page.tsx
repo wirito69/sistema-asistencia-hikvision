@@ -1238,7 +1238,8 @@ export default function DashboardPage() {
   const formatDate = (isoString: string) => {
     try {
       const date = new Date(isoString);
-      return date.toLocaleTimeString("es-ES", {
+      return date.toLocaleTimeString("es-PE", {
+        timeZone: "America/Lima",
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -1977,15 +1978,22 @@ export default function DashboardPage() {
   const filteredAulas = docentes
     .filter((d) => {
       let matchTipo = true;
+      const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
+
       if (!isAdminMode) {
-        // En Modo Alumnos: mostrar automáticamente los docentes programados para el turno de hoy (incluyendo Ambos Horarios)
-        const isBoth = d.tipo_horario === "Ambos Horarios" || d.tipo_horario === "Todos los Horarios" || d.tipo_horario === "Ambos";
-        if (isWeekend) matchTipo = d.tipo_horario === "Fin de Semana" || isBoth;
+        // En Modo Alumnos: mostrar automáticamente los docentes programados para el turno de hoy (incluyendo Ambos Horarios y quienes hayan marcado hoy)
+        const isBoth =
+          d.tipo_horario === "Ambos Horarios" ||
+          d.tipo_horario === "Todos los Horarios" ||
+          d.tipo_horario === "Ambos" ||
+          d.tipo_horario === "Padrón General";
+        if (hasLogToday) matchTipo = true;
+        else if (isWeekend) matchTipo = d.tipo_horario === "Fin de Semana" || isBoth;
         else if (isMWF) matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
         else matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
       } else {
-        if (horarioFilter === "Entre Semana") matchTipo = d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios";
-        else if (horarioFilter === "Fin de Semana") matchTipo = d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios";
+        if (horarioFilter === "Entre Semana") matchTipo = d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios" || hasLogToday;
+        else if (horarioFilter === "Fin de Semana") matchTipo = d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios" || hasLogToday;
         else if (horarioFilter === "Ambos Horarios") matchTipo = d.tipo_horario === "Ambos Horarios";
         else matchTipo = true;
       }
@@ -4362,7 +4370,9 @@ export default function DashboardPage() {
                     let isEntryLate = false;
                     if (firstLog && firstLog.timestamp) {
                       const d = new Date(firstLog.timestamp);
-                      const timeNum = d.getHours() + d.getMinutes() / 60;
+                      const peruTimeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+                      const [hStr, mStr] = peruTimeStr.split(":");
+                      const timeNum = parseInt(hStr, 10) + parseInt(mStr, 10) / 60;
                       if (isSaturday) {
                         if (currentHourDecimal >= 14.5 ? timeNum > 15.5 : timeNum > 7.5) isEntryLate = true;
                       } else {
