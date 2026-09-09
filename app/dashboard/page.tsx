@@ -431,6 +431,20 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [isCarteleraMode]);
 
+  // Restaurar sesión de Administrador desde localStorage o parámetro URL (?admin=1)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("admin") === "1" || urlParams.get("admin") === "true" || localStorage.getItem("admin_auth") === "true") {
+          setIsAdminMode(true);
+        }
+      } catch (e) {
+        console.error("Error reading admin auth:", e);
+      }
+    }
+  }, []);
+
   // Cargar reporte automáticamente al abrir la pestaña de reportes
   const handleFetchReporte = async () => {
     setIsGeneratingReporte(true);
@@ -2535,6 +2549,9 @@ export default function DashboardPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (adminPinInput === "admin2026" || adminPinInput === "1234" || adminPinInput === "2026" || adminPinInput === "admin") {
+                  try {
+                    localStorage.setItem("admin_auth", "true");
+                  } catch (err) {}
                   setIsAdminMode(true);
                   setShowAdminPinModal(false);
                   setAdminPinInput("");
@@ -3834,6 +3851,61 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 0. BARRA SUPERIOR DE ESTADO Y SEGREGACIÓN DE ROLES */}
+      <div className={`w-full py-1.5 px-4 text-xs flex items-center justify-between transition-all rounded-xl mb-1 flex-shrink-0 ${
+        isAdminMode 
+          ? "bg-amber-950/80 border border-amber-500/50 text-amber-200 shadow-md shadow-amber-950/40" 
+          : "bg-slate-900/90 border border-slate-800 text-slate-400"
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className={`w-2.5 h-2.5 rounded-full ${isAdminMode ? "bg-amber-400 animate-pulse shadow-sm shadow-amber-400" : "bg-emerald-400"}`} />
+          <span className="font-black tracking-wider uppercase text-[11px]">
+            {isAdminMode ? "🛠️ MODO ADMINISTRADOR (Control Total & Configuración)" : "📺 MODO PANTALLA PÚBLICA (Kiosco / Smart TV)"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {!isAdminMode ? (
+            <button
+              onClick={() => {
+                setAdminPinInput("");
+                setAdminPinError("");
+                setShowAdminPinModal(true);
+              }}
+              className="px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-md shadow-amber-950/50 cursor-pointer border border-amber-400 active:scale-95"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-950 font-bold" />
+              <span>Ingresar como Administrador (PIN)</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setTempConfig(horariosConfig);
+                  setShowConfigHorariosModal(true);
+                }}
+                className="px-3 py-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer border border-yellow-400 active:scale-95"
+              >
+                <Settings className="w-3.5 h-3.5 text-slate-950" />
+                <span>⚙️ Horarios & Rangos</span>
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("admin_auth");
+                  } catch (e) {}
+                  setIsAdminMode(false);
+                  setActiveTab("aulas");
+                }}
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-xs flex items-center gap-1 transition-all cursor-pointer border border-slate-700 active:scale-95"
+              >
+                <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Salir a Modo TV</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 1. HEADER INSTITUCIONAL: MODO ALUMNOS (KIOSCO TV LIMPIO) vs MODO ADMINISTRATIVO */}
       {!isAdminMode ? (
         // ==========================================
@@ -3893,7 +3965,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Grupo de Acceso Rápido */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
               <button
                 onClick={() => setIsCarteleraMode(!isCarteleraMode)}
                 className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
@@ -3932,16 +4004,16 @@ export default function DashboardPage() {
                   setAdminPinError("");
                   setShowAdminPinModal(true);
                 }}
-                className="p-2 rounded-lg text-xs font-bold text-amber-300 hover:bg-slate-900 hover:text-white flex items-center gap-1.5 transition-all"
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black rounded-lg flex items-center gap-1.5 shadow-md shadow-amber-950/40 transition-all border border-amber-400 cursor-pointer active:scale-95"
                 title="Acceso Administrador (Protegido por Clave)"
               >
-                <Lock className="w-4 h-4 text-amber-400" />
-                <span className="hidden lg:inline">Admin</span>
+                <Lock className="w-3.5 h-3.5 text-slate-950 font-bold" />
+                <span>Acceso Admin</span>
               </button>
 
               <button
                 onClick={toggleFullScreen}
-                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition-all"
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition-all cursor-pointer"
                 title="Pantalla Completa"
               >
                 <Maximize2 className="w-4 h-4" />
