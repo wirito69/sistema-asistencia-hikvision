@@ -189,12 +189,14 @@ function matchDNI(dniA: string | number | null | undefined, dniB: string | numbe
 function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: boolean): number {
   try {
     const d = new Date(isoTimestamp);
-    const hours = d.getHours();
-    const minutes = d.getMinutes();
+    const peruTimeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+    const [hStr, mStr] = peruTimeStr.split(":");
+    const hours = parseInt(hStr, 10);
+    const minutes = parseInt(mStr, 10);
     const timeNum = hours + minutes / 60;
 
     if (isSaturday) {
-      if (timeNum < 6.5) return -1; // Antes de las 06:30 AM
+      if (timeNum < 6.0) return -1; // Antes de las 06:00 AM
       if (timeNum < 11.0) return 0; // Entrada Mañana (07:00)
       if (timeNum >= 11.0 && timeNum < 14.5) return 1; // Salida Mañana (14:00)
       if (timeNum >= 14.5 && timeNum < 17.5) return 2; // Entrada Tarde (15:00)
@@ -203,15 +205,14 @@ function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: bo
 
     if (isMWF) {
       // Turno Noche L-M-V (18:00 a 21:30)
-      // Ventana de entrada habilitada desde las 17:30 (18:00 ± 30m).
-      // Si el docente pasa por la facultad antes de las 17:30 (ej. 09:00 AM o 11:00 AM), NO cuenta como entrada a clase.
-      if (timeNum < 17.5) return -1;
-      if (timeNum >= 17.5 && timeNum < 20.5) return 0; // Entrada Noche (18:00)
+      // Docentes que lleguen por la tarde/noche (desde las 14:00 hasta las 20:30) cuentan como Entrada (slot 0)
+      if (timeNum < 14.0) return -1;
+      if (timeNum < 20.3) return 0; // Entrada Noche (18:00)
       return 1; // Salida Noche (21:30)
     }
 
     // Fin de Semana Domingo o Regular
-    if (timeNum < 6.5) return -1;
+    if (timeNum < 6.0) return -1;
     if (timeNum < 13.0) return 0;
     return 1;
   } catch {
@@ -264,7 +265,9 @@ function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat
     let isLate = false;
     if (log.timestamp) {
       const d = new Date(log.timestamp);
-      const timeNum = d.getHours() + d.getMinutes() / 60;
+      const peruTimeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+      const [hStr, mStr] = peruTimeStr.split(":");
+      const timeNum = parseInt(hStr, 10) + parseInt(mStr, 10) / 60;
       if (isSat) {
         if (slotIdx === 0 && timeNum > 7.5) isLate = true; // Mañana tolerada hasta 07:30
         if (slotIdx === 2 && timeNum > 15.5) isLate = true; // Tarde tolerada hasta 15:30
@@ -917,16 +920,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setCurrentHourDecimal(now.getHours() + now.getMinutes() / 60);
+      const peruTimeStr = now.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+      const [hStr, mStr] = peruTimeStr.split(":");
+      setCurrentHourDecimal(parseInt(hStr, 10) + parseInt(mStr, 10) / 60);
       setCurrentTime(
-        now.toLocaleTimeString("es-ES", {
+        now.toLocaleTimeString("es-PE", {
+          timeZone: "America/Lima",
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
         })
       );
       setCurrentDate(
-        now.toLocaleDateString("es-ES", {
+        now.toLocaleDateString("es-PE", {
+          timeZone: "America/Lima",
           weekday: "long",
           day: "numeric",
           month: "long",
@@ -1625,69 +1632,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Horario y Fecha de Control (Automático hoy o Histórico según selectedDate)
-  const isViewingHistory = !!selectedDate;
-  const targetDateObj = selectedDate ? new Date(selectedDate + "T12:00:00") : new Date();
-  const dayOfWeek = targetDateObj.getDay();
-  const isSaturday = dayOfWeek === 6;
-  const isSunday = dayOfWeek === 0;
-  const isWeekend = isSaturday || isSunday;
-  const isMWF = dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5;
-  const maxPunchesExpected = isSaturday ? 4 : 2;
-
-  // Filtrar docentes presenciales activos según el día seleccionado/actual
-  const currentScheduleType = isWeekend ? "Fin de Semana (Presencial)" : (isMWF ? "Entre Semana (Presencial)" : "Presencial");
-
-  const activeDocentesForToday = docentes.filter((d) => {
-    const isVirtual = d.modalidad?.toLowerCase().includes("virtual") || d.aula?.toLowerCase().includes("virtual");
-    if (isVirtual) return false;
-
-    // Docentes que dictan en ambos turnos (S-D y L-M-V)
-    const isBoth = d.tipo_horario === "Ambos Horarios" || d.tipo_horario === "Todos los Horarios" || d.tipo_horario === "Ambos";
-    if (isBoth) return true;
-
-    if (isWeekend) return d.tipo_horario === "Fin de Semana";
-    if (isMWF) return d.tipo_horario === "Entre Semana";
-    return d.tipo_horario === "Fin de Semana";
-  });
-
-  const getHorarioInfo = () => {
-    if (isMWF) {
-      return {
-        turno: "Lun / Mié / Vie (18:00 a 21:30)",
-        badge: "Turno Noche • 2 Marcajes",
-        slots: [
-          { label: "1. Entrada Noche", hora: "18:00 (Tol: 18:30)" },
-          { label: "2. Salida Noche", hora: "21:30 (±30m)" },
-        ],
-      };
-    }
-    if (isSaturday) {
-      return {
-        turno: "Sábado (Mañana 07:00-14:00 | Tarde 15:00-18:30)",
-        badge: "Sábado Completo • 4 Marcajes",
-        slots: [
-          { label: "1. Entrada M.", hora: "07:00 (Tol: 07:30)" },
-          { label: "2. Salida M.", hora: "14:00 (±30m)" },
-          { label: "3. Entrada T.", hora: "15:00 (Tol: 15:30)" },
-          { label: "4. Salida T.", hora: "18:30 (±30m)" },
-        ],
-      };
-    }
-    return {
-      turno: "Fin de Semana • Posgrado UNHEVAL",
-      badge: "Turno Regular • 2 Marcajes",
-      slots: [
-        { label: "1. Entrada", hora: "--:--" },
-        { label: "2. Salida", hora: "--:--" },
-      ],
-    };
-  };
-
-  const horarioActual = getHorarioInfo();
-
-  // Filtrar marcaciones del día seleccionado (o día actual de forma robusta)
-
   // ==========================================
   // 🏆 CÁLCULO DE RANKING DE PUNTUALIDAD & KPIS (OPCIÓN 5)
   // ==========================================
@@ -1728,10 +1672,14 @@ export default function DashboardPage() {
       if (!teacher) return;
 
       const d = new Date(l.timestamp);
-      const hours = d.getHours();
-      const mins = d.getMinutes();
+      const peruDateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+      const peruTimeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+      const [hStr, mStr] = peruTimeStr.split(":");
+      const hours = parseInt(hStr, 10);
+      const mins = parseInt(mStr, 10);
       const timeNum = hours + mins / 60;
-      const dayOfWeek = d.getDay();
+      const [pY, pM, pD] = peruDateStr.split("-").map(Number);
+      const dayOfWeek = new Date(pY, pM - 1, pD, 12, 0, 0).getDay();
       const isSat = dayOfWeek === 6;
       const isSun = dayOfWeek === 0;
 
@@ -1739,15 +1687,15 @@ export default function DashboardPage() {
       let minTardanza = 0;
 
       if (isSat || isSun) {
-        if (timeNum >= 6.5 && timeNum < 11.0) {
+        if (timeNum >= 6.0 && timeNum < 11.0) {
           isEntrada = true;
           if (timeNum > 7.5) minTardanza = Math.round((timeNum - 7.5) * 60);
-        } else if (timeNum >= 14.5 && timeNum < 17.5) {
+        } else if (timeNum >= 14.0 && timeNum < 17.5) {
           isEntrada = true;
           if (timeNum > 15.5) minTardanza = Math.round((timeNum - 15.5) * 60);
         }
       } else {
-        if (timeNum >= 17.5 && timeNum < 20.5) {
+        if (timeNum >= 14.0 && timeNum < 20.3) {
           isEntrada = true;
           if (timeNum > 18.5) minTardanza = Math.round((timeNum - 18.5) * 60);
         }
@@ -1797,27 +1745,93 @@ export default function DashboardPage() {
     };
   }, [logs, docentes]);
 
-  // Filtrar marcaciones estrictamente del día calendario correspondiente (sin mezclar días anteriores)
+  // Horario y Fecha de Control en Zona Horaria de Perú (America/Lima)
+  const isViewingHistory = !!selectedDate;
+  const getPeruDateStr = (date: Date = new Date()) => {
+    return date.toLocaleDateString("en-CA", { timeZone: "America/Lima" }); // "YYYY-MM-DD"
+  };
+
+  const todayPeruStr = getPeruDateStr(new Date());
+  const effectiveDateStr = selectedDate || todayPeruStr;
+
+  // Filtrar marcaciones estrictamente del día correspondiente en hora de Perú
   const todayLogs = logs.filter((l) => {
     if (!l.timestamp) return false;
     const d = new Date(l.timestamp);
     if (isNaN(d.getTime())) return false;
-
-    if (selectedDate) {
-      const [y, m, day] = selectedDate.split("-").map(Number);
-      return d.getFullYear() === y && d.getMonth() === m - 1 && d.getDate() === day;
-    }
-
-    const now = new Date();
-    // Estricto: Mismo día, mes y año calendario (00:00:00 a 23:59:59 de HOY)
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
+    const logPeruDate = getPeruDateStr(d);
+    return logPeruDate === effectiveDateStr;
   });
 
   const presentIds = new Set(todayLogs.map((l) => normalizeDNI(l.employee_id)));
+
+  const [effY, effM, effD] = effectiveDateStr.split("-").map(Number);
+  const targetDateObj = new Date(effY, effM - 1, effD, 12, 0, 0);
+  const dayOfWeek = targetDateObj.getDay();
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+  const isWeekend = isSaturday || isSunday;
+  const isMWF = dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5;
+  const maxPunchesExpected = isSaturday ? 4 : 2;
+
+  // Filtrar docentes presenciales activos según el día seleccionado/actual
+  const currentScheduleType = isWeekend ? "Fin de Semana (Presencial)" : (isMWF ? "Entre Semana (Presencial)" : "Presencial");
+
+  const activeDocentesForToday = docentes.filter((d) => {
+    const isVirtual = d.modalidad?.toLowerCase().includes("virtual") || d.aula?.toLowerCase().includes("virtual");
+    if (isVirtual) return false;
+
+    // Si el docente ya registró marcación hoy en el terminal, incluirlo siempre para mostrar su tarjeta y estado verde
+    const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
+    if (hasLogToday) return true;
+
+    // Docentes que dictan en ambos turnos (S-D y L-M-V) o en padrón general
+    const isBoth =
+      d.tipo_horario === "Ambos Horarios" ||
+      d.tipo_horario === "Todos los Horarios" ||
+      d.tipo_horario === "Ambos" ||
+      d.tipo_horario === "Padrón General";
+    if (isBoth) return true;
+
+    if (isWeekend) return d.tipo_horario === "Fin de Semana";
+    if (isMWF) return d.tipo_horario === "Entre Semana";
+    return d.tipo_horario === "Fin de Semana";
+  });
+
+  const getHorarioInfo = () => {
+    if (isMWF) {
+      return {
+        turno: "Lun / Mié / Vie (18:00 a 21:30)",
+        badge: "Turno Noche • 2 Marcajes",
+        slots: [
+          { label: "1. Entrada Noche", hora: "18:00 (Tol: 18:30)" },
+          { label: "2. Salida Noche", hora: "21:30 (±30m)" },
+        ],
+      };
+    }
+    if (isSaturday) {
+      return {
+        turno: "Sábado (Mañana 07:00-14:00 | Tarde 15:00-18:30)",
+        badge: "Sábado Completo • 4 Marcajes",
+        slots: [
+          { label: "1. Entrada M.", hora: "07:00 (Tol: 07:30)" },
+          { label: "2. Salida M.", hora: "14:00 (±30m)" },
+          { label: "3. Entrada T.", hora: "15:00 (Tol: 15:30)" },
+          { label: "4. Salida T.", hora: "18:30 (±30m)" },
+        ],
+      };
+    }
+    return {
+      turno: "Fin de Semana • Posgrado UNHEVAL",
+      badge: "Turno Regular • 2 Marcajes",
+      slots: [
+        { label: "1. Entrada", hora: "--:--" },
+        { label: "2. Salida", hora: "--:--" },
+      ],
+    };
+  };
+
+  const horarioActual = getHorarioInfo();
 
   // Mapear los docentes que dictan hoy con su estado
   const docentesWithAttendance = activeDocentesForToday.map((docente) => {
