@@ -66,6 +66,12 @@ import {
   RotateCcw,
   Printer,
 } from "lucide-react";
+import {
+  DEFAULT_HORARIOS_CONFIG,
+  HorariosConfig,
+  timeStringToDecimal,
+  decimalToTimeString,
+} from "@/lib/horariosConfig";
 import { UNHEVAL_DOCENTES_DATA, DocenteData } from "@/lib/docentesData";
 
 // Generador de Campana / Ding-Dong de Aeropuerto con Web Audio API
@@ -88,65 +94,60 @@ function playAirportChime() {
     gain1.gain.linearRampToValueAtTime(0.35, now + 0.05);
     gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
     osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.55);
 
-    // Segundo tono: 587.33Hz (Re / D5) - Ding Dong Armónico
+    // Segundo tono: 587.33Hz (Re / D5) - acorde armónico suave
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = "sine";
-    osc2.frequency.setValueAtTime(587.33, now + 0.3);
-    gain2.gain.setValueAtTime(0, now + 0.3);
-    gain2.gain.linearRampToValueAtTime(0.35, now + 0.35);
+    osc2.frequency.setValueAtTime(587.33, now + 0.35);
+    gain2.gain.setValueAtTime(0, now + 0.35);
+    gain2.gain.linearRampToValueAtTime(0.4, now + 0.4);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
     osc2.connect(gain2);
+
+    gain1.connect(ctx.destination);
     gain2.connect(ctx.destination);
-    osc2.start(now + 0.3);
-    osc2.stop(now + 1.1);
+
+    osc1.start(now);
+    osc1.stop(now + 0.6);
+    osc2.start(now + 0.35);
+    osc2.stop(now + 1.2);
   } catch (e) {
-    console.error("No se pudo reproducir campana:", e);
+    console.error("Audio chime error:", e);
   }
 }
 
-// Convertidor de Base64 PCM Int16 a Float32Array para Web Audio en Tiempo Real (<150ms latencia)
+// Convertir PCM Float32 [-1, 1] a Base64 Int16 (para transmisión de micrófono ligera)
+function float32ToInt16Base64(float32Array: Float32Array): string {
+  const int16Array = new Int16Array(float32Array.length);
+  for (let i = 0; i < float32Array.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32Array[i]));
+    int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  const uint8 = new Uint8Array(int16Array.buffer);
+  let binary = "";
+  for (let i = 0; i < uint8.length; i++) {
+    binary += String.fromCharCode(uint8[i]);
+  }
+  return btoa(binary);
+}
+
+// Convertir Base64 Int16 a Float32Array (para receptor de audio)
 function base64ToFloat32(base64: string): Float32Array {
   try {
-    const binaryString = window.atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
     }
     const int16 = new Int16Array(bytes.buffer);
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) {
-      float32[i] = int16[i] / 32768;
+      float32[i] = int16[i] < 0 ? int16[i] / 0x8000 : int16[i] / 0x7fff;
     }
     return float32;
   } catch {
     return new Float32Array(0);
-  }
-}
-
-// Convertidor de Float32Array de micrófono a Base64 PCM Int16 para transmisión instantánea
-function float32ToInt16Base64(float32: Float32Array): string {
-  try {
-    const int16 = new Int16Array(float32.length);
-    for (let i = 0; i < float32.length; i++) {
-      const s = Math.max(-1, Math.min(1, float32[i]));
-      int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-    }
-    const bytes = new Uint8Array(int16.buffer);
-    let binary = "";
-    const chunk = 8192;
-    for (let i = 0; i < bytes.byteLength; i += chunk) {
-      const sub = bytes.subarray(i, i + chunk);
-      binary += String.fromCharCode.apply(null, Array.from(sub));
-    }
-    return window.btoa(binary);
-  } catch {
-    return "";
   }
 }
 
@@ -186,7 +187,7 @@ function matchDNI(dniA: string | number | null | undefined, dniB: string | numbe
   return aClean.length > 0 && aClean === bClean;
 }
 
-function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: boolean): number {
+function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: boolean, config: HorariosConfig = DEFAULT_HORARIOS_CONFIG): number {
   try {
     const d = new Date(isoTimestamp);
     const peruTimeStr = d.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
@@ -196,19 +197,28 @@ function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: bo
     const timeNum = hours + minutes / 60;
 
     if (isSaturday) {
-      if (timeNum < 6.0) return -1; // Antes de las 06:00 AM
-      if (timeNum < 11.0) return 0; // Entrada Mañana (07:00)
-      if (timeNum >= 11.0 && timeNum < 14.5) return 1; // Salida Mañana (14:00)
-      if (timeNum >= 14.5 && timeNum < 17.5) return 2; // Entrada Tarde (15:00)
-      return 3; // Salida Tarde (18:30)
+      const { sabadoManana, sabadoTarde } = config;
+      const minManana = timeStringToDecimal(sabadoManana.horaInicioEntrada) || 6.0;
+      const finEntradaM = timeStringToDecimal(sabadoManana.horaFinEntrada) || 11.0;
+      const finSalidaM = timeStringToDecimal(sabadoManana.horaFinSalida) || 14.5;
+      const finEntradaT = timeStringToDecimal(sabadoTarde.horaFinEntrada) || 17.5;
+
+      if (timeNum < minManana) return -1;
+      if (timeNum < finEntradaM) return 0; // Entrada Mañana
+      if (timeNum >= finEntradaM && timeNum < finSalidaM) return 1; // Salida Mañana
+      if (timeNum >= finSalidaM && timeNum < finEntradaT) return 2; // Entrada Tarde
+      return 3; // Salida Tarde
     }
 
     if (isMWF) {
-      // Turno Noche L-M-V (18:00 a 21:30)
-      // Docentes que lleguen por la tarde/noche (desde las 14:00 hasta las 20:30) cuentan como Entrada (slot 0)
-      if (timeNum < 14.0) return -1;
-      if (timeNum < 20.3) return 0; // Entrada Noche (18:00)
-      return 1; // Salida Noche (21:30)
+      // Turno Noche L-M-V
+      const { entreSemana } = config;
+      const minEntrada = timeStringToDecimal(entreSemana.horaInicioEntrada) || 14.0;
+      const finEntrada = timeStringToDecimal(entreSemana.horaFinEntrada) || 20.3;
+
+      if (timeNum < minEntrada) return -1;
+      if (timeNum < finEntrada) return 0; // Entrada Noche
+      return 1; // Salida Noche
     }
 
     // Fin de Semana Domingo o Regular
@@ -247,7 +257,7 @@ function sortAulasNatural(a: DocenteData, b: DocenteData): number {
 }
 
 // Función auxiliar para calcular el semáforo de 4 estados en cada slot
-function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat: boolean, curHour: number) {
+function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat: boolean, curHour: number, config: HorariosConfig = DEFAULT_HORARIOS_CONFIG) {
   if (log) {
     const isExit = String(log.tipo_evento).toUpperCase() === "SALIDA" || (slotIdx % 2 === 1);
     if (isExit) {
@@ -261,7 +271,7 @@ function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat
       };
     }
 
-    // Calcular si la ENTRADA fue puntual o con tardanza (+30m)
+    // Calcular si la ENTRADA fue puntual o con tardanza según la tolerancia configurada
     let isLate = false;
     if (log.timestamp) {
       const d = new Date(log.timestamp);
@@ -269,18 +279,22 @@ function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat
       const [hStr, mStr] = peruTimeStr.split(":");
       const timeNum = parseInt(hStr, 10) + parseInt(mStr, 10) / 60;
       if (isSat) {
-        if (slotIdx === 0 && timeNum > 7.5) isLate = true; // Mañana tolerada hasta 07:30
-        if (slotIdx === 2 && timeNum > 15.5) isLate = true; // Tarde tolerada hasta 15:30
+        const tolM = (timeStringToDecimal(config.sabadoManana.horaOficial) || 7.0) + (config.sabadoManana.toleranciaMinutos || 30) / 60;
+        const tolT = (timeStringToDecimal(config.sabadoTarde.horaOficial) || 15.0) + (config.sabadoTarde.toleranciaMinutos || 30) / 60;
+        if (slotIdx === 0 && timeNum > tolM) isLate = true;
+        if (slotIdx === 2 && timeNum > tolT) isLate = true;
       } else {
-        if (slotIdx === 0 && timeNum > 18.5) isLate = true; // Noche tolerada hasta 18:30
+        const tolNoche = (timeStringToDecimal(config.entreSemana.horaOficial) || 18.0) + (config.entreSemana.toleranciaMinutos || 30) / 60;
+        if (slotIdx === 0 && timeNum > tolNoche) isLate = true;
       }
     }
 
+    const tolMin = isSat ? config.sabadoManana.toleranciaMinutos : config.entreSemana.toleranciaMinutos;
     if (isLate) {
       return {
         status: "tardanza",
-        label: "Entrada (+30m) ⚠️",
-        badgeLabel: "Tarde (+30m) ⚠️",
+        label: `Entrada (+${tolMin}m) ⚠️`,
+        badgeLabel: `Tarde (+${tolMin}m) ⚠️`,
         colorClass: "bg-amber-950/60 border-amber-500/50 text-amber-300",
         bgClass: "bg-amber-500 text-slate-950",
         isMissed: false,
@@ -297,12 +311,18 @@ function getSlotStatus(slotIdx: number, log: AccessLog | null | undefined, isSat
     };
   }
 
-  // Si aún no hay marcaje: evaluar si ya venció el tiempo de tolerancia (+30m)
+  // Si aún no hay marcaje: evaluar si ya venció el tiempo de tolerancia
   let slotTime = 24;
   if (isSat) {
-    slotTime = [7.5, 13.5, 15.5, 20.5][slotIdx] || 24;
+    const tolM = (timeStringToDecimal(config.sabadoManana.horaOficial) || 7.0) + (config.sabadoManana.toleranciaMinutos || 30) / 60;
+    const salM = timeStringToDecimal(config.sabadoManana.horaFinSalida) || 14.5;
+    const tolT = (timeStringToDecimal(config.sabadoTarde.horaOficial) || 15.0) + (config.sabadoTarde.toleranciaMinutos || 30) / 60;
+    const salT = timeStringToDecimal(config.sabadoTarde.horaFinSalida) || 20.5;
+    slotTime = [tolM, salM, tolT, salT][slotIdx] || 24;
   } else {
-    slotTime = [18.5, 22.0][slotIdx] || 24;
+    const tolNoche = (timeStringToDecimal(config.entreSemana.horaOficial) || 18.0) + (config.entreSemana.toleranciaMinutos || 30) / 60;
+    const salNoche = timeStringToDecimal(config.entreSemana.horaFinSalida) || 22.0;
+    slotTime = [tolNoche, salNoche][slotIdx] || 24;
   }
   const isMissed = curHour > slotTime;
 
@@ -354,6 +374,18 @@ export default function DashboardPage() {
     time: string;
     tipo: string;
   } | null>(null);
+
+  // Estados para la Configuración Dinámica de Horarios y Rangos (Administrador)
+  const [horariosConfig, setHorariosConfig] = useState<HorariosConfig>(DEFAULT_HORARIOS_CONFIG);
+  const [tempConfig, setTempConfig] = useState<HorariosConfig>(DEFAULT_HORARIOS_CONFIG);
+  const [showConfigHorariosModal, setShowConfigHorariosModal] = useState<boolean>(false);
+  const [configModalTab, setConfigModalTab] = useState<"entreSemana" | "sabado" | "voz">("entreSemana");
+  const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
+
+  // Modal de Autenticación / PIN de Seguridad para Administrador
+  const [showAdminPinModal, setShowAdminPinModal] = useState<boolean>(false);
+  const [adminPinInput, setAdminPinInput] = useState<string>("");
+  const [adminPinError, setAdminPinError] = useState<string>("");
 
 
   // Estado para el modal de carga de horarios en PDF
@@ -575,7 +607,54 @@ export default function DashboardPage() {
         }
       })
       .catch((err) => console.error("Error al sincronizar docentes de la nube:", err));
+
+    // Cargar configuración de horarios y rangos de la nube
+    fetch(`/api/config-horarios?_t=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.config) {
+          setHorariosConfig(data.config);
+          setTempConfig(data.config);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("unheval_horarios_config", JSON.stringify(data.config));
+          }
+        }
+      })
+      .catch((err) => console.warn("Error cargando config horarios:", err));
   }, []);
+
+  // Guardar configuración de horarios y rangos en la nube y propagar
+  const handleSaveHorariosConfig = async (newConfig: HorariosConfig) => {
+    setIsSavingConfig(true);
+    try {
+      setHorariosConfig(newConfig);
+      setTempConfig(newConfig);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("unheval_horarios_config", JSON.stringify(newConfig));
+      }
+      const res = await fetch("/api/config-horarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: newConfig }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaveSuccessMsg("✅ Horarios y rangos guardados y sincronizados en todas las pantallas.");
+        setTimeout(() => setSaveSuccessMsg(""), 3000);
+        setShowConfigHorariosModal(false);
+      } else {
+        alert("Error al guardar en el servidor: " + (data.error || ""));
+      }
+    } catch (err) {
+      console.error("Error guardando horarios config:", err);
+      alert("Error de conexión al guardar configuración.");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   // Función auxiliar para persistir en la nube (Supabase) y en local
   const syncDocentesCloud = async (updatedList: DocenteData[]) => {
@@ -788,36 +867,44 @@ export default function DashboardPage() {
   // Voz de bienvenida y despedida en la Smart TV con Grado Académico
   const speakGreeting = (name: string, tipo: string = "ENTRADA", dni?: string) => {
     if (!voiceEnabledRef.current || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!horariosConfig.voz?.habilitarVoz) return;
 
     const now = new Date();
-    const day = now.getDay();
-    const isSaturday = day === 6;
-    const hoursDecimal = now.getHours() + now.getMinutes() / 60;
-    const isMWFDay = day === 1 || day === 3 || day === 5;
+    const peruTimeStr = now.toLocaleTimeString("en-US", { timeZone: "America/Lima", hour12: false });
+    const [hStr, mStr] = peruTimeStr.split(":");
+    const hoursDecimal = parseInt(hStr, 10) + parseInt(mStr, 10) / 60;
 
-    // En días de semana L-M-V, las clases inician a las 18:00 (habilitado desde 17:30).
-    // Si el docente pasa por la facultad en la mañana/tarde (<17:30), NO emitir bienvenida a clase.
-    if (isMWFDay && hoursDecimal < 17.5) {
-      return;
+    const minVoz = timeStringToDecimal(horariosConfig.voz?.horaMinimaVoz || "06:00");
+    const maxVoz = timeStringToDecimal(horariosConfig.voz?.horaMaximaVoz || "23:00");
+    if (hoursDecimal < minVoz || hoursDecimal > maxVoz) {
+      return; // Fuera del rango de voz permitido
     }
 
-    // Determinación precisa del tipo de evento según horario oficial:
+    const day = now.getDay();
+    const isSaturday = day === 6;
+
+    // Determinación precisa del tipo de evento según la configuración dinámica:
     let isSalida = false;
     if (isSaturday) {
-      // Sábado: Salidas son 11:30-14:30 y >= 17:00
-      isSalida = (hoursDecimal >= 11.5 && hoursDecimal < 14.5) || hoursDecimal >= 17.0;
+      const salMIni = timeStringToDecimal(horariosConfig.sabadoManana.horaInicioSalida) || 11.5;
+      const salMFin = timeStringToDecimal(horariosConfig.sabadoManana.horaFinSalida) || 14.5;
+      const salTIni = timeStringToDecimal(horariosConfig.sabadoTarde.horaInicioSalida) || 17.0;
+      isSalida = (hoursDecimal >= salMIni && hoursDecimal < salMFin) || hoursDecimal >= salTIni;
     } else {
-      // Días de semana (L-M-V): Entrada de clases es 17:30 a 20:15. Salida es >= 20:15
-      isSalida = hoursDecimal >= 20.25;
+      const salNocheIni = timeStringToDecimal(horariosConfig.entreSemana.horaInicioSalida) || 20.3;
+      isSalida = hoursDecimal >= salNocheIni;
     }
 
     // Si viene un tipo forzado y concuerda con las ventanas horarias
-    if (tipo && String(tipo).toUpperCase() === "SALIDA" && hoursDecimal >= 20.0) {
+    if (tipo && String(tipo).toUpperCase() === "SALIDA") {
       isSalida = true;
     }
-    if (tipo && String(tipo).toUpperCase() === "ENTRADA" && hoursDecimal < 20.25) {
+    if (tipo && String(tipo).toUpperCase() === "ENTRADA") {
       isSalida = false;
     }
+
+    if (isSalida && !horariosConfig.voz?.habilitarSalida) return;
+    if (!isSalida && !horariosConfig.voz?.habilitarEntrada) return;
 
     const cleanDni = dni ? normalizeDNI(dni) : normalizeDNI(name);
 
@@ -1801,24 +1888,34 @@ export default function DashboardPage() {
 
   const getHorarioInfo = () => {
     if (isMWF) {
+      const tolMin = horariosConfig.entreSemana?.toleranciaMinutos || 30;
+      const horaOficial = horariosConfig.entreSemana?.horaOficial || "18:00";
+      const horaSalida = horariosConfig.entreSemana?.horaInicioSalida || "21:30";
       return {
-        turno: "Lun / Mié / Vie (18:00 a 21:30)",
+        turno: `Lun / Mié / Vie (${horaOficial} a ${horaSalida})`,
         badge: "Turno Noche • 2 Marcajes",
         slots: [
-          { label: "1. Entrada Noche", hora: "18:00 (Tol: 18:30)" },
-          { label: "2. Salida Noche", hora: "21:30 (±30m)" },
+          { label: "1. Entrada Noche", hora: `${horaOficial} (Tol: +${tolMin}m)` },
+          { label: "2. Salida Noche", hora: `${horaSalida} (±30m)` },
         ],
       };
     }
     if (isSaturday) {
+      const tolM = horariosConfig.sabadoManana?.toleranciaMinutos || 30;
+      const tolT = horariosConfig.sabadoTarde?.toleranciaMinutos || 30;
+      const ofM = horariosConfig.sabadoManana?.horaOficial || "07:00";
+      const salM = horariosConfig.sabadoManana?.horaInicioSalida || "14:00";
+      const ofT = horariosConfig.sabadoTarde?.horaOficial || "15:00";
+      const salT = horariosConfig.sabadoTarde?.horaInicioSalida || "18:30";
+
       return {
-        turno: "Sábado (Mañana 07:00-14:00 | Tarde 15:00-18:30)",
+        turno: `Sábado (Mañana ${ofM}-${salM} | Tarde ${ofT}-${salT})`,
         badge: "Sábado Completo • 4 Marcajes",
         slots: [
-          { label: "1. Entrada M.", hora: "07:00 (Tol: 07:30)" },
-          { label: "2. Salida M.", hora: "14:00 (±30m)" },
-          { label: "3. Entrada T.", hora: "15:00 (Tol: 15:30)" },
-          { label: "4. Salida T.", hora: "18:30 (±30m)" },
+          { label: "1. Entrada M.", hora: `${ofM} (Tol: +${tolM}m)` },
+          { label: "2. Salida M.", hora: `${salM} (±30m)` },
+          { label: "3. Entrada T.", hora: `${ofT} (Tol: +${tolT}m)` },
+          { label: "4. Salida T.", hora: `${salT} (±30m)` },
         ],
       };
     }
@@ -1840,7 +1937,7 @@ export default function DashboardPage() {
     const slotsData: (AccessLog | null)[] = Array(maxPunchesExpected).fill(null);
 
     docLogs.forEach((log) => {
-      const slotIdx = getSlotIndexForLog(log.timestamp, isSaturday, isMWF);
+      const slotIdx = getSlotIndexForLog(log.timestamp, isSaturday, isMWF, horariosConfig);
       if (slotIdx >= 0 && slotIdx < maxPunchesExpected) {
         const isEntradaSlot = slotIdx % 2 === 0;
         if (!slotsData[slotIdx]) {
@@ -2407,7 +2504,527 @@ export default function DashboardPage() {
         </div>
       )}
 
-            {/* MODAL: VERIFICADOR DE AULAS Y ALERTAS PROACTIVAS WHATSAPP */}
+            {/* 🔒 MODAL DE SEGURIDAD: PIN DE ADMINISTRADOR */}
+      {showAdminPinModal && (
+        <div
+          onClick={() => setShowAdminPinModal(false)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl relative cursor-default"
+          >
+            <button
+              onClick={() => setShowAdminPinModal(false)}
+              className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white p-2 rounded-full transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500/20 p-2.5 rounded-2xl border border-amber-500/40 shadow-inner">
+                <Lock className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Acceso Administrativo</h3>
+                <p className="text-xs text-slate-400">Ingresa la clave para acceder al panel de control</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (adminPinInput === "admin2026" || adminPinInput === "1234" || adminPinInput === "2026" || adminPinInput === "admin") {
+                  setIsAdminMode(true);
+                  setShowAdminPinModal(false);
+                  setAdminPinInput("");
+                  setAdminPinError("");
+                } else {
+                  setAdminPinError("❌ Contraseña incorrecta. (Clave por defecto: admin2026)");
+                }
+              }}
+              className="flex flex-col gap-3 mt-1"
+            >
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">Clave de Seguridad:</label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={adminPinInput}
+                  onChange={(e) => {
+                    setAdminPinInput(e.target.value);
+                    setAdminPinError("");
+                  }}
+                  placeholder="Ingresa PIN / Clave..."
+                  className="w-full mt-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono text-center text-lg tracking-widest focus:border-amber-500 outline-none"
+                />
+                {adminPinError && (
+                  <p className="text-xs text-rose-400 font-bold mt-1.5 text-center">{adminPinError}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 cursor-pointer"
+              >
+                <KeyRound className="w-4 h-4" /> Ingresar al Panel Admin
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ⚙️ MODAL DE CONFIGURACIÓN DE HORARIOS Y RANGOS DE ASISTENCIA */}
+      {showConfigHorariosModal && (
+        <div
+          onClick={() => !isSavingConfig && setShowConfigHorariosModal(false)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border-2 border-amber-500/60 rounded-3xl p-6 max-w-2xl w-full flex flex-col gap-4 shadow-2xl relative max-h-[90vh] overflow-y-auto cursor-default"
+          >
+            <button
+              onClick={() => !isSavingConfig && setShowConfigHorariosModal(false)}
+              className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white p-2 rounded-full transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500/20 p-2.5 rounded-2xl border border-amber-500/40 shadow-inner">
+                <Settings className="w-6 h-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg md:text-xl font-black text-white">
+                  Programación de Horarios, Rangos y Voz
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Configura las horas exactas de aceptación para Entrada, Salida, tolerancias y locución
+                </p>
+              </div>
+            </div>
+
+            {/* Pestañas de Configuración */}
+            <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold mt-1">
+              <button
+                type="button"
+                onClick={() => setConfigModalTab("entreSemana")}
+                className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  configModalTab === "entreSemana"
+                    ? "bg-indigo-600 text-white shadow-md font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <CalendarClock className="w-3.5 h-3.5" />
+                <span>Entre Semana (L-M-V)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfigModalTab("sabado")}
+                className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  configModalTab === "sabado"
+                    ? "bg-purple-600 text-white shadow-md font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Sábados (M / T)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfigModalTab("voz")}
+                className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                  configModalTab === "voz"
+                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Locución de Voz</span>
+              </button>
+            </div>
+
+            {/* CONTENIDO TAB 1: ENTRE SEMANA */}
+            {configModalTab === "entreSemana" && (
+              <div className="flex flex-col gap-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 animate-in fade-in">
+                <div className="border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
+                    Turno Noche • Lunes, Miércoles y Viernes
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Define la hora oficial de clase, la ventana de llegada y la ventana de salida
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Oficial de Inicio de Clase:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.entreSemana.horaOficial}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, horaOficial: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 uppercase">Tolerancia de Tardanza (Minutos):</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={tempConfig.entreSemana.toleranciaMinutos}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold text-sm focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase">Aceptar Entrada Desde:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.entreSemana.horaInicioEntrada}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, horaInicioEntrada: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold text-sm focus:border-emerald-400"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">Marcajes antes de esta hora se ignoran</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-emerald-400 uppercase">Aceptar Entrada Hasta:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.entreSemana.horaFinEntrada}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, horaFinEntrada: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold text-sm focus:border-emerald-400"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">Posterior a esta hora cuenta como salida</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-blue-400 uppercase">Aceptar Salida Desde:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.entreSemana.horaInicioSalida}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, horaInicioSalida: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-xl px-3 py-2 text-blue-300 font-mono font-bold text-sm focus:border-blue-400"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">Marcaje finaliza jornada y marca azul</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-blue-400 uppercase">Aceptar Salida Hasta:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.entreSemana.horaFinSalida}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          entreSemana: { ...tempConfig.entreSemana, horaFinSalida: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-xl px-3 py-2 text-blue-300 font-mono font-bold text-sm focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONTENIDO TAB 2: SÁBADOS */}
+            {configModalTab === "sabado" && (
+              <div className="flex flex-col gap-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 animate-in fade-in">
+                {/* 1. Turno Mañana */}
+                <div className="border-b border-slate-800 pb-3">
+                  <h4 className="text-xs font-black uppercase text-purple-400 tracking-wider">
+                    Sábado • Turno Mañana (Slots 1 y 2)
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Hora Clase:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoManana.horaOficial}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, horaOficial: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-amber-400 uppercase">Tol (min):</label>
+                      <input
+                        type="number"
+                        value={tempConfig.sabadoManana.toleranciaMinutos}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-emerald-400 uppercase">Entrada Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoManana.horaFinEntrada}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, horaFinEntrada: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-lg px-2 py-1 text-xs text-emerald-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-blue-400 uppercase">Salida Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoManana.horaFinSalida}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, horaFinSalida: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-lg px-2 py-1 text-xs text-blue-300 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Turno Tarde */}
+                <div>
+                  <h4 className="text-xs font-black uppercase text-pink-400 tracking-wider">
+                    Sábado • Turno Tarde (Slots 3 y 4)
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Hora Clase:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoTarde.horaOficial}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, horaOficial: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-amber-400 uppercase">Tol (min):</label>
+                      <input
+                        type="number"
+                        value={tempConfig.sabadoTarde.toleranciaMinutos}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-emerald-400 uppercase">Entrada Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoTarde.horaFinEntrada}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, horaFinEntrada: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-lg px-2 py-1 text-xs text-emerald-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-blue-400 uppercase">Salida Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoTarde.horaFinSalida}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, horaFinSalida: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-lg px-2 py-1 text-xs text-blue-300 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONTENIDO TAB 3: LOCUCIÓN DE VOZ */}
+            {configModalTab === "voz" && (
+              <div className="flex flex-col gap-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 animate-in fade-in">
+                <div className="border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                    Emisión de Mensajes y Locución de Voz
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Establece cuándo y qué mensajes de voz emitirá la Smart TV al detectar a un docente
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={tempConfig.voz.habilitarVoz}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          voz: { ...tempConfig.voz, habilitarVoz: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 text-amber-500 rounded"
+                    />
+                    <span className="text-xs font-bold text-white">Activar Locución General</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={tempConfig.voz.habilitarEntrada}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          voz: { ...tempConfig.voz, habilitarEntrada: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 text-emerald-500 rounded"
+                    />
+                    <span className="text-xs font-bold text-emerald-300">Voz en Bienvenida (Entrada)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={tempConfig.voz.habilitarSalida}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          voz: { ...tempConfig.voz, habilitarSalida: e.target.checked },
+                        })
+                      }
+                      className="w-4 h-4 text-blue-500 rounded"
+                    />
+                    <span className="text-xs font-bold text-blue-300">Voz en Despedida (Salida)</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Mínima Permitida de Voz:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.voz.horaMinimaVoz}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          voz: { ...tempConfig.voz, horaMinimaVoz: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">No emitirá voz antes de esta hora</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Máxima Permitida de Voz:</label>
+                    <input
+                      type="time"
+                      value={tempConfig.voz.horaMaximaVoz}
+                      onChange={(e) =>
+                        setTempConfig({
+                          ...tempConfig,
+                          voz: { ...tempConfig.voz, horaMaximaVoz: e.target.value },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">No emitirá voz después de esta hora</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BOTONES DE ACCIÓN */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setTempConfig(DEFAULT_HORARIOS_CONFIG)}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                title="Restablecer valores de fábrica"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restablecer Fábrica</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfigHorariosModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveHorariosConfig(tempConfig)}
+                  disabled={isSavingConfig}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-amber-950/60 transition-all cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingConfig ? "Guardando..." : "💾 Guardar y Aplicar a Todas las Pantallas"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VERIFICADOR DE AULAS Y ALERTAS PROACTIVAS WHATSAPP */}
       {showVerificarAulasModal && (
         <div
           onClick={() => setShowVerificarAulasModal(false)}
@@ -3310,9 +3927,13 @@ export default function DashboardPage() {
               </button>
 
               <button
-                onClick={() => setIsAdminMode(true)}
-                className="p-2 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-900 hover:text-white flex items-center gap-1.5 transition-all"
-                title="Acceder al Panel Administrativo"
+                onClick={() => {
+                  setAdminPinInput("");
+                  setAdminPinError("");
+                  setShowAdminPinModal(true);
+                }}
+                className="p-2 rounded-lg text-xs font-bold text-amber-300 hover:bg-slate-900 hover:text-white flex items-center gap-1.5 transition-all"
+                title="Acceso Administrador (Protegido por Clave)"
               >
                 <Lock className="w-4 h-4 text-amber-400" />
                 <span className="hidden lg:inline">Admin</span>
@@ -3480,6 +4101,18 @@ export default function DashboardPage() {
 
             {/* GRUPO 2: HERRAMIENTAS OPERATIVAS */}
             <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setTempConfig(horariosConfig);
+                  setShowConfigHorariosModal(true);
+                }}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-amber-950/50 cursor-pointer"
+                title="Programar rangos de horas de ingreso, salida, tolerancias y voz"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>⚙️ Horarios & Rangos</span>
+              </button>
+
               <button
                 onClick={() => setShowVerificarAulasModal(true)}
                 className="px-3 py-1.5 bg-amber-950/60 hover:bg-amber-900 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
