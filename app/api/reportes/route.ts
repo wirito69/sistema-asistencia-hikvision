@@ -254,13 +254,17 @@ export async function GET(request: NextRequest) {
       // Docentes programados para este turno
       const dayDocentesList = filteredDocentes
         .filter((docente) => {
+          if (querySearch) return true;
           const isBoth =
             docente.tipo_horario === "Ambos Horarios" ||
             docente.tipo_horario === "Todos los Horarios" ||
-            docente.tipo_horario === "Ambos";
+            docente.tipo_horario === "Ambos" ||
+            docente.tipo_horario === "Padrón General";
 
           if (isWeekend && (docente.tipo_horario === "Fin de Semana" || isBoth)) return true;
           if (isMWF && (docente.tipo_horario === "Entre Semana" || isBoth)) return true;
+          // Si el docente marcó asistencia en esta fecha, incluirlo siempre
+          if (dayLogs.some((l) => matchDNI(l.employee_id, docente.employee_id))) return true;
           return false;
         })
         .sort(sortAulasNatural);
