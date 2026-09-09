@@ -1,13 +1,12 @@
-// Base de Datos Centralizada de Docentes - Posgrado UNHEVAL
 export interface DocenteData {
   employee_id: string;
   name: string;
   aula: string;
   curso: string;
   teams: string;
-  modalidad: "Presencial" | "Virtual (Teams)" | string;
-  tipo_horario: "Entre Semana" | "Fin de Semana" | "Ambos Horarios" | "Padrón General" | string;
-  cargo?: string;
+  modalidad: string;
+  tipo_horario: "Fin de Semana" | "Entre Semana" | "Ambos Horarios" | "Padrón General" | string;
+  cargo: string;
 }
 
 export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
@@ -1453,12 +1452,12 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
   },
   {
     "employee_id": "22435387",
-    "name": "ENRIQUE CASTRO Y CESPEDES",
+    "name": "DR. CASTRO Y CESPEDES, ENRIQUE",
     "aula": "Posgrado UNHEVAL",
     "curso": "Docente de Posgrado",
     "teams": "TEAMS-22435387",
     "modalidad": "Presencial",
-    "tipo_horario": "Padrón General",
+    "tipo_horario": "Entre Semana",
     "cargo": "Docente"
   },
   {
@@ -2123,12 +2122,12 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
   },
   {
     "employee_id": "47036878",
-    "name": "HUAMANÍ CALLUPE, CARLA LIZBETH",
+    "name": "MG. HUAMANÍ CALLUPE, CARLA LIZBETH",
     "aula": "Posgrado UNHEVAL",
     "curso": "Docente de Posgrado",
     "teams": "TEAMS-47036878",
     "modalidad": "Presencial",
-    "tipo_horario": "Padrón General",
+    "tipo_horario": "Ambos Horarios",
     "cargo": "Docente"
   },
   {
@@ -2528,8 +2527,8 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
     "curso": "COORDINACIÓN GENERAL DE POSGRADO",
     "teams": "TEAMS-72123814",
     "modalidad": "Presencial",
-    "tipo_horario": "Fin de Semana",
-    "cargo": "Docente"
+    "tipo_horario": "Ambos Horarios",
+    "cargo": "Personal de Apoyo"
   },
   {
     "employee_id": "22513276",
@@ -3073,12 +3072,12 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
   },
   {
     "employee_id": "22720910",
-    "name": "LENIN DOMINGO ALVARADO VARA",
+    "name": "MG. ALVARADO VARA, LENIN DOMINGO",
     "aula": "Posgrado UNHEVAL",
     "curso": "Docente de Posgrado",
     "teams": "TEAMS-22720910",
     "modalidad": "Presencial",
-    "tipo_horario": "Padrón General",
+    "tipo_horario": "Entre Semana",
     "cargo": "Docente"
   },
   {
@@ -5023,12 +5022,12 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
   },
   {
     "employee_id": "22489452",
-    "name": "WILDER ANTONIO DOMINGUEZ ESPIRITU",
+    "name": "MG. DOMINGUEZ ESPIRITU, WILDER ANTONIO",
     "aula": "Posgrado UNHEVAL",
     "curso": "Docente de Posgrado",
     "teams": "TEAMS-22489452",
     "modalidad": "Presencial",
-    "tipo_horario": "Padrón General",
+    "tipo_horario": "Fin de Semana",
     "cargo": "Docente"
   },
   {
@@ -5220,5 +5219,95 @@ export const UNHEVAL_DOCENTES_DATA: DocenteData[] = [
     "modalidad": "Presencial",
     "tipo_horario": "Padrón General",
     "cargo": "Docente"
+  },
+  {
+    "employee_id": "42938322",
+    "name": "MAG. CONDEZO CABRERA, JUAN CARLOS",
+    "aula": "Aula 401",
+    "curso": "AUDITORÍA TRIBUTARIA",
+    "teams": "389H 260810 AUDITORÍA TRIBUTARIA",
+    "modalidad": "Presencial",
+    "tipo_horario": "Entre Semana",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "44287920",
+    "name": "MG. CAMARA LLANOS, FRANK ERICK",
+    "aula": "Posgrado UNHEVAL",
+    "curso": "Docente de Posgrado",
+    "teams": "TEAMS-44287920",
+    "modalidad": "Presencial",
+    "tipo_horario": "Entre Semana",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "42334082",
+    "name": "MG. GARAY MORALES, WILLIAMS EDWARD",
+    "aula": "Posgrado UNHEVAL",
+    "curso": "Docente de Posgrado",
+    "teams": "TEAMS-42334082",
+    "modalidad": "Presencial",
+    "tipo_horario": "Ambos Horarios",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "22435357",
+    "name": "DR. CASTRO Y CESPEDES, VICTOR",
+    "aula": "Posgrado UNHEVAL",
+    "curso": "Docente de Posgrado",
+    "teams": "TEAMS-22435357",
+    "modalidad": "Presencial",
+    "tipo_horario": "Fin de Semana",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "71648605",
+    "name": "MG. URETA BERNARDO, KENJI FRANK",
+    "aula": "Posgrado UNHEVAL",
+    "curso": "Docente de Posgrado",
+    "teams": "TEAMS-71648605",
+    "modalidad": "Presencial",
+    "tipo_horario": "Fin de Semana",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "09532543",
+    "name": "DR. NIETO MODESTO, DAVID ABEL",
+    "aula": "Posgrado UNHEVAL",
+    "curso": "Docente de Posgrado",
+    "teams": "TEAMS-09532543",
+    "modalidad": "Presencial",
+    "tipo_horario": "Fin de Semana",
+    "cargo": "Docente"
+  },
+  {
+    "employee_id": "46317400",
+    "name": "HERNAN (CONTROL ACADÉMICO)",
+    "aula": "Dirección 1",
+    "curso": "COORDINACIÓN ACADÉMICA",
+    "teams": "TEAMS-46317400",
+    "modalidad": "Presencial",
+    "tipo_horario": "Ambos Horarios",
+    "cargo": "Personal de Apoyo"
+  },
+  {
+    "employee_id": "76685680",
+    "name": "KLINTON (CONTROL ACADÉMICO)",
+    "aula": "Dirección 1",
+    "curso": "COORDINACIÓN ACADÉMICA",
+    "teams": "TEAMS-76685680",
+    "modalidad": "Presencial",
+    "tipo_horario": "Ambos Horarios",
+    "cargo": "Personal de Apoyo"
+  },
+  {
+    "employee_id": "76180502",
+    "name": "DUAH (CONTROL ACADÉMICO)",
+    "aula": "Dirección 1",
+    "curso": "COORDINACIÓN ACADÉMICA",
+    "teams": "TEAMS-76180502",
+    "modalidad": "Presencial",
+    "tipo_horario": "Ambos Horarios",
+    "cargo": "Personal de Apoyo"
   }
 ];
