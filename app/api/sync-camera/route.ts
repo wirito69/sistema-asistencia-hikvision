@@ -93,6 +93,54 @@ function makeRequest(ip: string, method: string, path: string, body: string | nu
   });
 }
 
+function downloadImageBuffer(ip: string, uriPath: string, auth: string | null = null): Promise<{ status: number; headers: http.IncomingHttpHeaders; buffer: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const headers: Record<string, string> = {};
+    if (auth) headers["Authorization"] = auth;
+
+    const req = http.request(
+      {
+        hostname: ip,
+        port: 80,
+        path: uriPath,
+        method: "GET",
+        headers: headers,
+        timeout: 10000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          resolve({ status: res.statusCode || 500, headers: res.headers, buffer: Buffer.concat(chunks) });
+        });
+      }
+    );
+
+    req.on("error", (err) => reject(err));
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Timeout"));
+    });
+    req.end();
+  });
+}
+
+async function fetchPhotoBuffer(ip: string, user: string, pass: string, rawUrl: string): Promise<Buffer | null> {
+  try {
+    const urlObj = new URL(rawUrl);
+    const pathWithQuery = urlObj.pathname + (urlObj.search || "");
+    const initial = await downloadImageBuffer(ip, pathWithQuery);
+    if (initial.status === 401 && initial.headers["www-authenticate"]) {
+      const auth = calculateDigest("GET", pathWithQuery, user, pass, initial.headers["www-authenticate"] as string);
+      const authRes = await downloadImageBuffer(ip, pathWithQuery, auth);
+      if (authRes.status === 200 && authRes.buffer.length > 0) {
+        return authRes.buffer;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function isapiRequest(ip: string, user: string, pass: string, method: string, path: string, body: string | null = null) {
   const initial = await makeRequest(ip, method, path, body);
   if (initial.status === 401 && initial.headers["www-authenticate"]) {
@@ -170,46 +218,68 @@ export async function GET(req: NextRequest) {
 
     const { data: existingLogs } = await supabase
       .from("access_logs")
-      .select("id, employee_id, timestamp");
+      .select("id, employee_id, timestamp, picture_url");
 
-    const existingSet = new Set<string>();
+    const existingMap = new Map<string, any>();
     (existingLogs || []).forEach((log) => {
       const dni = normalizeDNI(log.employee_id);
       const t = new Date(log.timestamp).getTime();
       const minBucket = Math.round(t / 60000);
-      existingSet.add(`${dni}_${minBucket}`);
-      existingSet.add(`${dni}_${minBucket - 1}`);
-      existingSet.add(`${dni}_${minBucket + 1}`);
+      existingMap.set(`${dni}_${minBucket}`, log);
     });
 
-    const recordsToInsert: any[] = [];
+    let insertedCount = 0;
+    let photosUploaded = 0;
+
     for (const ev of allEvents) {
       const rawDni = ev.employeeNoString || "";
       const dni = normalizeDNI(rawDni);
       if (!dni || dni === "0") continue;
 
       const eventDate = new Date(ev.time);
-      const minBucket = Math.round(eventDate.getTime() / 60000);
+      const eventTimestamp = eventDate.getTime();
+      const minBucket = Math.round(eventTimestamp / 60000);
+      const key = `${dni}_${minBucket}`;
 
-      if (!existingSet.has(`${dni}_${minBucket}`)) {
+      let logRecord = existingMap.get(key) || existingMap.get(`${dni}_${minBucket - 1}`) || existingMap.get(`${dni}_${minBucket + 1}`);
+
+      let pictureUrl: string | null = logRecord?.picture_url || null;
+
+      // Si no tiene foto y la cámara tiene pictureURL, descargarla y subirla
+      if (!pictureUrl && ev.pictureURL) {
+        const photoBuffer = await fetchPhotoBuffer(ip, user, pass, ev.pictureURL);
+        if (photoBuffer && photoBuffer.length > 0) {
+          const fileName = `captures/${eventTimestamp}_${dni}.jpg`;
+          const { error: upErr } = await supabase.storage
+            .from("access-captures")
+            .upload(fileName, photoBuffer, {
+              contentType: "image/jpeg",
+              upsert: true,
+            });
+
+          if (!upErr) {
+            pictureUrl = `${supabaseUrl}/storage/v1/object/public/access-captures/${fileName}`;
+            photosUploaded++;
+          }
+        }
+      }
+
+      if (!logRecord) {
         const tipo = clasificarMarcacionPorHorario(eventDate);
-        recordsToInsert.push({
+        const { data: inserted } = await supabase.from("access_logs").insert({
           employee_id: dni,
           employee_name: ev.name || "Docente Registrado",
           tipo_evento: tipo,
-          picture_url: null,
+          picture_url: pictureUrl,
           timestamp: eventDate.toISOString(),
-        });
-        existingSet.add(`${dni}_${minBucket}`);
-        existingSet.add(`${dni}_${minBucket - 1}`);
-        existingSet.add(`${dni}_${minBucket + 1}`);
-      }
-    }
+        }).select("id").single();
 
-    if (recordsToInsert.length > 0) {
-      for (let i = 0; i < recordsToInsert.length; i += 50) {
-        const chunk = recordsToInsert.slice(i, i + 50);
-        await supabase.from("access_logs").insert(chunk);
+        if (inserted) {
+          existingMap.set(key, { id: inserted.id, picture_url: pictureUrl });
+          insertedCount++;
+        }
+      } else if (!logRecord.picture_url && pictureUrl) {
+        await supabase.from("access_logs").update({ picture_url: pictureUrl }).eq("id", logRecord.id);
       }
     }
 
@@ -217,7 +287,8 @@ export async function GET(req: NextRequest) {
       success: true,
       mensaje: `Sincronización completada con éxito desde el equipo Hikvision (${ip}).`,
       eventos_camara_totales: allEvents.length,
-      nuevos_registros_insertados: recordsToInsert.length,
+      nuevos_registros_insertados: insertedCount,
+      fotos_sincronizadas: photosUploaded,
       rango_sincronizado: { inicio: startTimeStr, fin: endTimeStr },
     });
   } catch (error: any) {
