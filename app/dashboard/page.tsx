@@ -1882,17 +1882,16 @@ export default function DashboardPage() {
     const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
     if (hasLogToday) return true;
 
-    // Docentes que dictan en ambos turnos (S-D y L-M-V) o en padrón general
+    // Docentes que dictan en ambos turnos (S-D y L-M-V)
     const isBoth =
       d.tipo_horario === "Ambos Horarios" ||
       d.tipo_horario === "Todos los Horarios" ||
-      d.tipo_horario === "Ambos" ||
-      d.tipo_horario === "Padrón General";
+      d.tipo_horario === "Ambos";
     if (isBoth) return true;
 
     if (isWeekend) return d.tipo_horario === "Fin de Semana";
     if (isMWF) return d.tipo_horario === "Entre Semana";
-    return d.tipo_horario === "Fin de Semana";
+    return d.tipo_horario === "Entre Semana";
   });
 
   const getHorarioInfo = () => {
@@ -2544,10 +2543,8 @@ export default function DashboardPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (adminPinInput === "admin2026" || adminPinInput === "1234" || adminPinInput === "2026" || adminPinInput === "admin") {
-                  try {
-                    localStorage.setItem("admin_auth", "true");
-                  } catch (err) {}
                   setIsAdminMode(true);
+                  setActiveTab("gestor");
                   setShowAdminPinModal(false);
                   setAdminPinInput("");
                   setAdminPinError("");
@@ -4100,42 +4097,18 @@ export default function DashboardPage() {
 
           {/* FILA 2: BARRA MODULAR DE PESTAÑAS Y HERRAMIENTAS */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-            {/* GRUPO 1: PESTAÑAS PRINCIPALES SEGMENTADAS */}
+            {/* GRUPO 1: PESTAÑAS PRINCIPALES DEL PANEL ADMINISTRATIVO */}
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               <button
-                onClick={() => setActiveTab("aulas")}
+                onClick={() => setActiveTab("gestor")}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "aulas"
-                    ? "bg-purple-600 text-white shadow-md font-black"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5 text-purple-400" />
-                <span>Salones (TV)</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("timeline")}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "timeline"
-                    ? "bg-indigo-600 text-white shadow-md font-black"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Control de Asistencia</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("ranking")}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "ranking"
+                  activeTab === "gestor"
                     ? "bg-amber-500 text-slate-950 shadow-md font-black"
                     : "text-amber-300 hover:text-white"
                 }`}
               >
-                <Trophy className="w-3.5 h-3.5" />
-                <span>🏆 Ranking & KPIs</span>
+                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                <span>👨‍🏫 Gestor Docentes</span>
               </button>
 
               <button
@@ -4150,19 +4123,31 @@ export default function DashboardPage() {
                 }`}
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Reportes & Liquidación</span>
+                <span>📊 Reportes & Liquidación</span>
               </button>
 
               <button
-                onClick={() => setActiveTab("gestor")}
+                onClick={() => setActiveTab("timeline")}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "gestor"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-amber-300 hover:text-white"
+                  activeTab === "timeline"
+                    ? "bg-indigo-600 text-white shadow-md font-black"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
-                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Gestor Docentes</span>
+                <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                <span>📋 Control de Asistencia</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("ranking")}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                  activeTab === "ranking"
+                    ? "bg-purple-600 text-white shadow-md font-black"
+                    : "text-purple-300 hover:text-white"
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                <span>🏆 Ranking & KPIs</span>
               </button>
             </div>
 
