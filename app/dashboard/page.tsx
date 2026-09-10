@@ -2086,12 +2086,11 @@ export default function DashboardPage() {
       const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
 
       if (!isAdminMode) {
-        // En Modo Alumnos: mostrar automáticamente los docentes programados para el turno de hoy (incluyendo Ambos Horarios y quienes hayan marcado hoy)
+        // En Modo Alumnos / TV: mostrar ÚNICAMENTE los docentes programados para el turno de hoy o quienes hayan marcado hoy
         const isBoth =
           d.tipo_horario === "Ambos Horarios" ||
           d.tipo_horario === "Todos los Horarios" ||
-          d.tipo_horario === "Ambos" ||
-          d.tipo_horario === "Padrón General";
+          d.tipo_horario === "Ambos";
         if (hasLogToday) matchTipo = true;
         else if (isWeekend) matchTipo = d.tipo_horario === "Fin de Semana" || isBoth;
         else if (isMWF) matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
