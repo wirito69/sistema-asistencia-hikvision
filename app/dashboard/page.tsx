@@ -355,7 +355,7 @@ export default function DashboardPage() {
   const [gestorSearch, setGestorSearch] = useState<string>("");
   const [selectedHorario, setSelectedHorario] = useState<string>("todos");
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"timeline" | "aulas" | "gestor" | "faltan" | "presentes" | "historial" | "reportes" | "ranking">("aulas");
+  const [activeTab, setActiveTab] = useState<"timeline" | "aulas" | "gestor" | "faltan" | "presentes" | "historial" | "reportes" | "ranking" | "horarios" | "notificaciones">("aulas");
   const [horarioFilter, setHorarioFilter] = useState<string>("Todos");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [gestorFilter, setGestorFilter] = useState<string>("todos");
@@ -4014,30 +4014,22 @@ export default function DashboardPage() {
         </header>
       ) : (
         // ==========================================
-        // ⚙️ PANEL ADMINISTRATIVO (ORDENADO Y MODULAR)
+        // ⚙️ PANEL ADMINISTRATIVO PROFESIONAL (ESTILO ENTERPRISE)
         // ==========================================
-        <header className="border-b border-slate-800 pb-2.5 flex flex-col gap-2.5 flex-shrink-0 bg-slate-900/90 p-3.5 rounded-2xl border border-amber-500/30 shadow-2xl backdrop-blur-md">
-          {/* FILA 1: IDENTIDAD + SELECTOR DE FECHA + RELOJ + SALIR DE ADMIN */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-amber-500/40 text-amber-400 hover:text-amber-300 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-black/40 cursor-pointer active:scale-95"
-                title="Abrir Menú Principal"
-              >
-                <Menu className="w-5 h-5" />
-                <span className="text-xs font-black uppercase hidden sm:inline">Menú</span>
-              </button>
-              <div className="bg-amber-500/10 p-2 rounded-2xl border border-amber-500/30">
-                <GraduationCap className="w-7 h-7 text-amber-400" />
+        <header className="border-b border-slate-800 pb-3 flex flex-col gap-3 flex-shrink-0 bg-slate-900/95 p-4 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md">
+          {/* FILA 1: CABECERA PRINCIPAL */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div className="flex items-center space-x-3.5">
+              <div className="bg-gradient-to-tr from-amber-500 to-yellow-500 p-2.5 rounded-2xl shadow-lg shadow-amber-950/40">
+                <ShieldCheck className="w-6 h-6 text-slate-950 font-black" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-950/80 border border-amber-500/30 px-2 py-0.5 rounded-md">
-                    PANEL DE GESTIÓN Y CONTROL ACADÉMICO
+                    PANEL DE ADMINISTRACIÓN CENTRAL
                   </span>
                   <span className="text-[10px] bg-slate-950 border border-slate-800 text-purple-300 font-bold px-2 py-0.5 rounded-md">
-                    👥 {activeDocentesForToday.length} Docentes Presenciales Hoy
+                    👥 {docentes.length} Docentes Registrados
                   </span>
                   {saveSuccessMsg && (
                     <span className="text-[10px] bg-emerald-500 text-slate-950 font-bold px-2.5 py-0.5 rounded-full animate-bounce">
@@ -4046,199 +4038,122 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <h1 className="text-lg md:text-xl font-black tracking-tight text-white mt-0.5">
-                  CONTROL DE ASISTENCIA BIOMÉTRICA FACIAL • POSGRADO UNHEVAL
+                  GESTIÓN Y CONTROL BIOMÉTRICO • POSGRADO UNHEVAL
                 </h1>
               </div>
             </div>
 
+            {/* CONTROLES RÁPIDOS Y BOTÓN DE RETORNO A PANTALLA TV */}
             <div className="flex items-center gap-2 self-end md:self-auto">
-              {/* Selector Rápido de Fecha */}
-              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-xl text-xs">
-                <button
-                  onClick={() => setSelectedDate("")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
-                    !selectedDate ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                  <span>Hoy</span>
-                </button>
+              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+                <Calendar className="w-4 h-4 text-slate-400" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-slate-900 text-slate-200 text-xs font-bold px-2 py-1 rounded-lg border border-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
+                  className="bg-transparent text-slate-200 text-xs font-bold outline-none cursor-pointer"
                 />
               </div>
 
-              {/* Reloj */}
-              <div className="flex items-center space-x-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shadow-md">
+              <div className="flex items-center space-x-1.5 bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800 shadow-md">
                 <Clock className="w-4 h-4 text-blue-400" />
                 <span className="text-sm font-mono font-bold text-white tracking-wider">
                   {currentTime}
                 </span>
               </div>
 
-              {/* Botón Salir a Pantalla Alumnos */}
               <button
                 onClick={() => {
                   setIsAdminMode(false);
                   setActiveTab("aulas");
                 }}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-purple-950/50 transition-all active:scale-95 cursor-pointer"
-                title="Volver a la vista limpia de salones para los alumnos"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-purple-950/50 transition-all active:scale-95 cursor-pointer"
+                title="Volver a la vista de pantalla pública para los alumnos"
               >
-                <Eye className="w-4 h-4" />
-                <span>📺 Vista Alumnos (TV)</span>
+                <Tv className="w-4 h-4" />
+                <span>📺 Ver Pantalla TV</span>
               </button>
             </div>
           </div>
 
-          {/* FILA 2: BARRA MODULAR DE PESTAÑAS Y HERRAMIENTAS */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-            {/* GRUPO 1: PESTAÑAS PRINCIPALES DEL PANEL ADMINISTRATIVO */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              <button
-                onClick={() => setActiveTab("gestor")}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "gestor"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-amber-300 hover:text-white"
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                <span>👨‍🏫 Gestor Docentes</span>
-              </button>
+          {/* FILA 2: BARRA DE PESTAÑAS DE NAVEGACIÓN MODULAR */}
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("gestor")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "gestor"
+                  ? "bg-amber-500 text-slate-950 shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>👨‍🏫 Gestor de Docentes & Aulas</span>
+            </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab("reportes");
-                  handleFetchReporte();
-                }}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "reportes"
-                    ? "bg-emerald-600 text-white shadow-md font-black"
-                    : "text-emerald-400 hover:text-white"
-                }`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                <span>📊 Reportes & Liquidación</span>
-              </button>
+            <button
+              onClick={() => setActiveTab("horarios")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "horarios"
+                  ? "bg-amber-500 text-slate-950 shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>⚙️ Horarios, Tolerancias & Voz</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab("timeline")}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "timeline"
-                    ? "bg-indigo-600 text-white shadow-md font-black"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                <span>📋 Control de Asistencia</span>
-              </button>
+            <button
+              onClick={() => {
+                setActiveTab("reportes");
+                handleFetchReporte();
+              }}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "reportes"
+                  ? "bg-emerald-600 text-white shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>📊 Reportes & Liquidación Excel</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab("ranking")}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
-                  activeTab === "ranking"
-                    ? "bg-purple-600 text-white shadow-md font-black"
-                    : "text-purple-300 hover:text-white"
-                }`}
-              >
-                <Trophy className="w-3.5 h-3.5" />
-                <span>🏆 Ranking & KPIs</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setActiveTab("timeline")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "timeline"
+                  ? "bg-indigo-600 text-white shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Activity className="w-4 h-4 text-indigo-400" />
+              <span>📋 Asistencias de Hoy en Vivo</span>
+            </button>
 
-            {/* GRUPO 2: HERRAMIENTAS OPERATIVAS */}
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => {
-                  setTempConfig(horariosConfig);
-                  setShowConfigHorariosModal(true);
-                }}
-                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-amber-950/50 cursor-pointer"
-                title="Programar rangos de horas de ingreso, salida, tolerancias y voz"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>⚙️ Horarios & Rangos</span>
-              </button>
+            <button
+              onClick={() => setActiveTab("notificaciones")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "notificaciones"
+                  ? "bg-rose-600 text-white shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Megaphone className="w-4 h-4 text-rose-400" />
+              <span>📢 Megáfono & Alertas Aulas</span>
+            </button>
 
-              <button
-                onClick={() => setShowVerificarAulasModal(true)}
-                className="px-3 py-1.5 bg-amber-950/60 hover:bg-amber-900 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                title="Escanear aulas vacías y alertar por WhatsApp"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>Verificar Aulas ({aulasSinDocente.length})</span>
-              </button>
-
-              <button
-                onClick={() => setShowMegaphoneModal(true)}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-rose-950 cursor-pointer"
-              >
-                <Megaphone className="w-3.5 h-3.5 animate-pulse" />
-                <span>Megáfono</span>
-              </button>
-
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Subir PDF</span>
-              </button>
-
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Docente</span>
-              </button>
-
-              <button
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  voiceEnabled ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "bg-slate-950 border-slate-800 text-slate-500"
-                }`}
-                title="Activar/Desactivar Voz"
-              >
-                {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </button>
-            </div>
+            <button
+              onClick={() => setActiveTab("ranking")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "ranking"
+                  ? "bg-purple-600 text-white shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-purple-400" />
+              <span>🏆 Ranking & Métricas</span>
+            </button>
           </div>
         </header>
-      )}
-
-      {/* LEYENDA INSTITUCIONAL DE 3 ESTADOS (SOLO VISIBLE EN MODO ADMIN) */}
-      {isAdminMode && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-1 my-1 text-xs flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-400 uppercase text-[11px]">Control de Asistencia:</span>
-            <span className="text-[10px] text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3 text-emerald-400" /> Orden dinámico por llegada
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-bold">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-              <span className="text-emerald-300">Verde: Puntual</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" />
-              <span className="text-amber-300">Amarillo: Entrada (+30m)</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" />
-              <span className="text-rose-400">Rojo: Sin Registro</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" />
-              <span className="text-blue-300">Azul: Salida</span>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* MODAL: NOTIFICACIÓN WHATSAPP Y COMPARTIR A CUALQUIER GRUPO */}
@@ -4891,8 +4806,552 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 4.3 PESTAÑA: PANEL DE SALONES PARA ALUMNOS (CUADRÍCULA 3xN) */}
-        {activeTab === "aulas" && (
+        {/* 4.2.1 PESTAÑA: CONFIGURACIÓN DE HORARIOS, TOLERANCIAS Y LOCUCIÓN */}
+        {activeTab === "horarios" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto gap-4 p-1">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500/20 p-2.5 rounded-2xl border border-amber-500/40 shadow-inner">
+                    <Settings className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white">
+                      Configuración de Horarios, Tolerancias y Locución de Voz
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Define los rangos horarios para aceptación de Entrada/Salida, tolerancias de tardanza y mensajes de voz
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingConfig}
+                  onClick={() => handleSaveHorariosConfig(tempConfig)}
+                  className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-amber-950/50 cursor-pointer disabled:opacity-50 transition-all self-end sm:self-auto"
+                >
+                  <Save className="w-4 h-4 text-slate-950" />
+                  <span>{isSavingConfig ? "Guardando en Supabase..." : "Guardar y Aplicar Cambios"}</span>
+                </button>
+              </div>
+
+              {/* Selector de Pestañas de Horario */}
+              <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setConfigModalTab("entreSemana")}
+                  className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    configModalTab === "entreSemana"
+                      ? "bg-indigo-600 text-white shadow-md font-black"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <CalendarClock className="w-4 h-4" />
+                  <span>Entre Semana (L-M-V)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfigModalTab("sabado")}
+                  className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    configModalTab === "sabado"
+                      ? "bg-purple-600 text-white shadow-md font-black"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Sábados (Mañana y Tarde)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfigModalTab("voz")}
+                  className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    configModalTab === "voz"
+                      ? "bg-amber-500 text-slate-950 shadow-md font-black"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>Locución de Voz en Pantalla</span>
+                </button>
+              </div>
+
+              {/* SECCIÓN 1: ENTRE SEMANA */}
+              {configModalTab === "entreSemana" && (
+                <div className="flex flex-col gap-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
+                        Turno Noche • Lunes, Miércoles y Viernes
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Configuración para los 2 marcajes (Entrada y Salida Noche)
+                      </p>
+                    </div>
+                    <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded font-mono font-bold">
+                      Hora Oficial: {tempConfig.entreSemana.horaOficial}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Oficial de Inicio:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.entreSemana.horaOficial}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, horaOficial: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Tolerancia de Tardanza (Min):</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        value={tempConfig.entreSemana.toleranciaMinutos}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold text-sm focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase">Aceptar Entrada Desde:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.entreSemana.horaInicioEntrada}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, horaInicioEntrada: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold text-sm focus:border-emerald-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase">Aceptar Entrada Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.entreSemana.horaFinEntrada}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, horaFinEntrada: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-emerald-500/50 rounded-xl px-3 py-2 text-emerald-300 font-mono font-bold text-sm focus:border-emerald-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-400 uppercase">Aceptar Salida Desde:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.entreSemana.horaInicioSalida}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, horaInicioSalida: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-xl px-3 py-2 text-blue-300 font-mono font-bold text-sm focus:border-blue-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-400 uppercase">Aceptar Salida Hasta:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.entreSemana.horaFinSalida}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            entreSemana: { ...tempConfig.entreSemana, horaFinSalida: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-blue-500/50 rounded-xl px-3 py-2 text-blue-300 font-mono font-bold text-sm focus:border-blue-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECCIÓN 2: SÁBADOS */}
+              {configModalTab === "sabado" && (
+                <div className="flex flex-col gap-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-black uppercase text-purple-400 tracking-wider">
+                      Turno Mañana • Sábados (Slots 1 y 2)
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Clase M.:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoManana.horaOficial}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, horaOficial: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Tolerancia (Min):</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        value={tempConfig.sabadoManana.toleranciaMinutos}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoManana: { ...tempConfig.sabadoManana, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase">Entrada Mañana:</label>
+                      <div className="flex gap-1 mt-1">
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoManana.horaInicioEntrada}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoManana: { ...tempConfig.sabadoManana, horaInicioEntrada: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-emerald-500/40 rounded-lg px-2 py-1.5 text-emerald-300 font-mono text-xs"
+                        />
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoManana.horaFinEntrada}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoManana: { ...tempConfig.sabadoManana, horaFinEntrada: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-emerald-500/40 rounded-lg px-2 py-1.5 text-emerald-300 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-400 uppercase">Salida Mañana:</label>
+                      <div className="flex gap-1 mt-1">
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoManana.horaInicioSalida}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoManana: { ...tempConfig.sabadoManana, horaInicioSalida: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-blue-500/40 rounded-lg px-2 py-1.5 text-blue-300 font-mono text-xs"
+                        />
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoManana.horaFinSalida}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoManana: { ...tempConfig.sabadoManana, horaFinSalida: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-blue-500/40 rounded-lg px-2 py-1.5 text-blue-300 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-slate-800 pt-3 pb-2">
+                    <h4 className="text-xs font-black uppercase text-purple-400 tracking-wider">
+                      Turno Tarde • Sábados (Slots 3 y 4)
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Clase T.:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.sabadoTarde.horaOficial}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, horaOficial: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Tolerancia (Min):</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        value={tempConfig.sabadoTarde.toleranciaMinutos}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            sabadoTarde: { ...tempConfig.sabadoTarde, toleranciaMinutos: parseInt(e.target.value || "0", 10) },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-emerald-400 uppercase">Entrada Tarde:</label>
+                      <div className="flex gap-1 mt-1">
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoTarde.horaInicioEntrada}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoTarde: { ...tempConfig.sabadoTarde, horaInicioEntrada: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-emerald-500/40 rounded-lg px-2 py-1.5 text-emerald-300 font-mono text-xs"
+                        />
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoTarde.horaFinEntrada}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoTarde: { ...tempConfig.sabadoTarde, horaFinEntrada: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-emerald-500/40 rounded-lg px-2 py-1.5 text-emerald-300 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-400 uppercase">Salida Tarde:</label>
+                      <div className="flex gap-1 mt-1">
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoTarde.horaInicioSalida}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoTarde: { ...tempConfig.sabadoTarde, horaInicioSalida: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-blue-500/40 rounded-lg px-2 py-1.5 text-blue-300 font-mono text-xs"
+                        />
+                        <input
+                          type="time"
+                          value={tempConfig.sabadoTarde.horaFinSalida}
+                          onChange={(e) =>
+                            setTempConfig({
+                              ...tempConfig,
+                              sabadoTarde: { ...tempConfig.sabadoTarde, horaFinSalida: e.target.value },
+                            })
+                          }
+                          className="w-1/2 bg-slate-900 border border-blue-500/40 rounded-lg px-2 py-1.5 text-blue-300 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECCIÓN 3: LOCUCIÓN DE VOZ */}
+              {configModalTab === "voz" && (
+                <div className="flex flex-col gap-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                      Control del Locutor Automático en Smart TV
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-white">Voz Habilitada</p>
+                        <p className="text-[10px] text-slate-400">Emisión en parlantes</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={tempConfig.voz.habilitarVoz}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            voz: { ...tempConfig.voz, habilitarVoz: e.target.checked },
+                          })
+                        }
+                        className="w-5 h-5 accent-amber-500 rounded cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-emerald-400">Saludo Entrada</p>
+                        <p className="text-[10px] text-slate-400">¡Bienvenido a Posgrado!</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={tempConfig.voz.habilitarEntrada}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            voz: { ...tempConfig.voz, habilitarEntrada: e.target.checked },
+                          })
+                        }
+                        className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-blue-400">Despedida Salida</p>
+                        <p className="text-[10px] text-slate-400">¡Hasta luego Docente!</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={tempConfig.voz.habilitarSalida}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            voz: { ...tempConfig.voz, habilitarSalida: e.target.checked },
+                          })
+                        }
+                        className="w-5 h-5 accent-blue-500 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Mínima de Locución:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.voz.horaMinimaVoz}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            voz: { ...tempConfig.voz, horaMinimaVoz: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 uppercase">Hora Máxima de Locución:</label>
+                      <input
+                        type="time"
+                        value={tempConfig.voz.horaMaximaVoz}
+                        onChange={(e) =>
+                          setTempConfig({
+                            ...tempConfig,
+                            voz: { ...tempConfig.voz, horaMaximaVoz: e.target.value },
+                          })
+                        }
+                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 4.2.2 PESTAÑA: MEGÁFONO EN VIVO & ALERTAS DE AULAS */}
+        {activeTab === "notificaciones" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto gap-4 p-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Card 1: Megáfono */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                    <div className="bg-rose-500/20 p-2.5 rounded-2xl border border-rose-500/40">
+                      <Megaphone className="w-6 h-6 text-rose-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white">Megáfono en Vivo</h3>
+                      <p className="text-xs text-slate-400">Transmitir comunicados de voz a los Smart TVs</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-4 leading-relaxed">
+                    Envía un mensaje de audio inmediato a través de los parlantes de todas las pantallas conectadas en los pabellones.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMegaphoneModal(true)}
+                  className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer transition-all"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>Abrir Transmisor de Megáfono</span>
+                </button>
+              </div>
+
+              {/* Card 2: Scanner Aulas Vacías */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                    <div className="bg-amber-500/20 p-2.5 rounded-2xl border border-amber-500/40">
+                      <ShieldAlert className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white">Verificación de Aulas Vacías</h3>
+                      <p className="text-xs text-slate-400">Escanear salones sin docente y alertar</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 mt-4 flex items-center justify-between">
+                    <span className="text-xs text-slate-300">Aulas sin docente asignado hoy:</span>
+                    <span className="text-sm font-mono font-black text-amber-400">{aulasSinDocente.length} Aulas</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVerificarAulasModal(true)}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 cursor-pointer transition-all"
+                >
+                  <ShieldAlert className="w-4 h-4 text-slate-950" />
+                  <span>Escanear y Enviar Alerta WhatsApp</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 4.3 PESTAÑA: PANEL DE SALONES PARA ALUMNOS (CUADRÍCULA 3xN - SOLO EN MODO TV) */}
+        {!isAdminMode && activeTab === "aulas" && (
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden gap-2">
             {/* Barra de Filtros y Búsqueda (SOLO EN MODO ADMINISTRATIVO) */}
             {isAdminMode ? (
