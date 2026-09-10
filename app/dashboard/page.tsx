@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { createClient } from "@supabase/supabase-js";
 import {
   Radio,
   Clock,
@@ -160,10 +159,9 @@ interface AccessLog {
   timestamp: string;
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ttadifnnamibraysbrbm.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+import { getSupabaseClient } from "@/lib/supabaseDefaults";
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = getSupabaseClient();
 
 function normalizeDNI(dni: string | number | null | undefined): string {
   if (!dni) return "";

@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin, DEFAULT_SUPABASE_URL } from "@/lib/supabaseDefaults";
 import crypto from "crypto";
 import http from "http";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ttadifnnamibraysbrbm.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = getSupabaseAdmin();
 
 const DEFAULT_IP = process.env.HIKVISION_IP || "172.16.80.12";
 const DEFAULT_USER = process.env.HIKVISION_USER || "admin";
@@ -258,7 +253,7 @@ export async function GET(req: NextRequest) {
             });
 
           if (!upErr) {
-            pictureUrl = `${supabaseUrl}/storage/v1/object/public/access-captures/${fileName}`;
+            pictureUrl = `${DEFAULT_SUPABASE_URL}/storage/v1/object/public/access-captures/${fileName}`;
             photosUploaded++;
           }
         }

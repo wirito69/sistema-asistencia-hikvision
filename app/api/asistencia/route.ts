@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { UNHEVAL_DOCENTES_DATA, DocenteData } from "@/lib/docentesData";
+import { getSupabaseAdmin } from "@/lib/supabaseDefaults";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ttadifnnamibraysbrbm.supabase.co";
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "sb_publishable_Xgnc119i7vOBta25V74eWw_dpij7N-R";
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = getSupabaseAdmin();
 
 function normalizeDNI(id: string | null | undefined): string {
   if (!id) return "";

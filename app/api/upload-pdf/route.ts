@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UNHEVAL_DOCENTES_DATA, DocenteData } from "@/lib/docentesData";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseDefaults";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParsePkg = require("pdf-parse");
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ttadifnnamibraysbrbm.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = getSupabaseAdmin();
 
 const CONFIG_KEY = "CONFIG_DOCENTES_UNHEVAL";
 

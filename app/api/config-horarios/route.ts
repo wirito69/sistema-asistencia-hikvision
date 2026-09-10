@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DEFAULT_HORARIOS_CONFIG, HorariosConfig } from "@/lib/horariosConfig";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseDefaults";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ttadifnnamibraysbrbm.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+const supabase = getSupabaseAdmin();
 
 const CONFIG_STORAGE_PATH = "config/horarios_config.json";
 const BUCKET_NAME = "access-captures";
