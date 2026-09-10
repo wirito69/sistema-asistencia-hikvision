@@ -3981,15 +3981,6 @@ export default function DashboardPage() {
               </a>
 
               <button
-                onClick={() => setShowMegaphoneModal(true)}
-                className="p-2 rounded-lg text-xs font-bold text-rose-300 hover:bg-slate-900 hover:text-white flex items-center gap-1.5 transition-all"
-                title="Transmitir audio por micrófono a todas las pantallas"
-              >
-                <Megaphone className="w-4 h-4 text-rose-400 animate-pulse" />
-                <span className="hidden lg:inline">Megáfono</span>
-              </button>
-
-              <button
                 onClick={() => {
                   setAdminPinInput("");
                   setAdminPinError("");
