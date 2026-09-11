@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+﻿const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -29,7 +29,9 @@ const SUPABASE_KEY =
   env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   Buffer.from('c2Jfc2VjcmV0XzNnSklqcjdoeTRpS2M0RXhGSXBDendfb2xEWWtBaDA=', 'base64').toString('utf-8');
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 const IP = env.HIKVISION_IP || '172.16.80.12';
 const USER = env.HIKVISION_USER || 'admin';
@@ -91,7 +93,7 @@ function isapiRequest(method, uri, body = null) {
         path: uri,
         method,
         headers,
-        timeout: 10000
+        timeout: 5000
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
@@ -105,6 +107,10 @@ function isapiRequest(method, uri, body = null) {
       });
 
       req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Hikvision timeout (5s)'));
+      });
       if (body) req.write(body);
       req.end();
     };
@@ -133,7 +139,7 @@ function fetchPhotoBufferFromCamera(picUri) {
         path: cleanUri,
         method: 'GET',
         headers,
-        timeout: 12000
+        timeout: 3000
       }, (res) => {
         if (res.statusCode === 401 && !authHeader && res.headers['www-authenticate']) {
           const digest = getDigestAuth('GET', cleanUri, USER, PASS, res.headers['www-authenticate']);
@@ -161,6 +167,10 @@ function fetchPhotoBufferFromCamera(picUri) {
       });
 
       req.on('error', () => resolve(null));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(null);
+      });
       req.end();
     };
 
@@ -192,21 +202,19 @@ function getPeruDateOnly(d = new Date()) {
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
 }
 
-let syncCount = 0;
+async function fetchAllCameraEventsToday(todayPeru) {
+  let position = 0;
+  let totalMatches = 1;
+  const allEvents = [];
+  const startIso = `${todayPeru}T00:00:00-05:00`;
+  const endIso = `${todayPeru}T23:59:59-05:00`;
 
-async function syncCycle() {
-  try {
-    const now = new Date();
-    const todayPeru = getPeruDateOnly(now);
-    
-    const startIso = `${todayPeru}T00:00:00-05:00`;
-    const endIso = `${todayPeru}T23:59:59-05:00`;
-
+  while (position < totalMatches) {
     const body = JSON.stringify({
       AcsEventCond: {
-        searchID: "live_" + Date.now(),
-        searchResultPosition: 0,
-        maxResults: 150,
+        searchID: "sync_page_" + Date.now(),
+        searchResultPosition: position,
+        maxResults: 30,
         major: 5,
         minor: 75,
         startTime: startIso,
@@ -216,30 +224,50 @@ async function syncCycle() {
 
     const res = await isapiRequest('POST', '/ISAPI/AccessControl/AcsEvent?format=json', body);
     if (res.status !== 200) {
-      console.warn(`[SYNC] Respuesta no 200 de Hikvision: ${res.status}`);
-      return;
+      console.warn(`[SYNC] Error HTTP ${res.status} al consultar cámara.`);
+      break;
     }
 
     const json = JSON.parse(res.data);
-    const events = json.AcsEvent?.InfoList || [];
-    syncCount++;
+    totalMatches = json.AcsEvent?.totalMatches || 0;
+    const list = json.AcsEvent?.InfoList || [];
+    if (list.length === 0) break;
+    allEvents.push(...list);
+    position += list.length;
+    if (position >= totalMatches) break;
+  }
 
-    if (events.length === 0) {
-      if (syncCount % 12 === 0) {
-        console.log(`[SYNC ${new Date().toLocaleTimeString('es-PE', { timeZone: 'America/Lima' })}] Sin nuevos eventos en terminal (${events.length} hoy)`);
-      }
-      return;
-    }
+  return allEvents;
+}
 
+let isSyncing = false;
+let failCount = 0;
+
+async function syncCycle() {
+  if (isSyncing) return;
+  isSyncing = true;
+
+  try {
+    const now = new Date();
+    const todayPeru = getPeruDateOnly(now);
+
+    const events = await fetchAllCameraEventsToday(todayPeru);
+    if (events.length === 0) return;
+
+    // Obtener marcaciones existentes en Supabase
     const { data: existingLogs, error: dbErr } = await supabase
       .from('access_logs')
       .select('id, employee_id, timestamp, picture_url')
       .gte('timestamp', `${todayPeru}T00:00:00.000Z`);
 
     if (dbErr) {
-      console.error('[SYNC] Error al consultar Supabase:', dbErr.message);
+      failCount++;
+      if (failCount % 6 === 1) {
+        console.error('[SYNC DB Error]', dbErr.message);
+      }
       return;
     }
+    failCount = 0;
 
     const existingMap = new Map();
     (existingLogs || []).forEach(log => {
@@ -266,6 +294,7 @@ async function syncCycle() {
       let logRecord = existingMap.get(key);
       let pictureUrl = logRecord?.picture_url || null;
 
+      // Descargar foto si no existe
       if (!pictureUrl && ev.pictureURL) {
         try {
           const photoBuffer = await fetchPhotoBufferFromCamera(ev.pictureURL);
@@ -283,14 +312,13 @@ async function syncCycle() {
             }
           }
         } catch (e) {
-          console.warn(`[FOTO] Error subiendo foto DNI ${dni}:`, e.message);
+          // Si falla la foto, continuar con la asistencia
         }
       }
 
       if (!logRecord) {
         const tipo = clasificarMarcacionPorHorario(eventDate);
-        const peruTimeFormatted = eventDate.toLocaleTimeString('es-PE', { timeZone: 'America/Lima' });
-        console.log(`⚡ [NUEVA ASISTENCIA] ${peruTimeFormatted} | DNI: ${dni} | ${ev.name} | Tipo: ${tipo} | Foto: ${pictureUrl ? 'OK' : 'NO'}`);
+        const horaStr = eventDate.toLocaleTimeString('es-PE', { timeZone: 'America/Lima' });
 
         const { data: inserted, error: insErr } = await supabase.from('access_logs').insert({
           employee_id: dni,
@@ -305,30 +333,35 @@ async function syncCycle() {
           existingMap.set(`${dni}_${minBucket - 1}`, { id: inserted.id, picture_url: pictureUrl });
           existingMap.set(`${dni}_${minBucket + 1}`, { id: inserted.id, picture_url: pictureUrl });
           newInserted++;
-        }
-        if (insErr) {
-          console.error('[SYNC] Error al insertar marcación:', insErr.message);
+          console.log(`⚡ [ASISTENCIA REGISTRADA] ${horaStr} | DNI: ${dni} | ${ev.name} | ${tipo} | Foto: ${pictureUrl ? 'OK' : 'NO'}`);
+        } else if (insErr) {
+          console.error('[Error insertando]:', insErr.message);
         }
       } else if (!logRecord.picture_url && pictureUrl) {
         await supabase.from('access_logs').update({ picture_url: pictureUrl }).eq('id', logRecord.id);
         logRecord.picture_url = pictureUrl;
-        console.log(`📷 [FOTO ACTUALIZADA] DNI: ${dni} | ${pictureUrl}`);
+        console.log(`📷 [Foto sincronizada]: DNI ${dni}`);
       }
     }
 
     if (newInserted > 0) {
-      console.log(`✅ [SYNC] Se sincronizaron exitosamente ${newInserted} nuevas marcaciones en Supabase Cloud.`);
+      console.log(`✅ [EXITO] ${newInserted} marcaciones nuevas sincronizadas a la nube.`);
     }
   } catch (err) {
     console.error('❌ Error en ciclo de sync:', err.message);
+  } finally {
+    isSyncing = false;
   }
 }
 
 async function startDaemon() {
-  console.log('🚀 DEMONIO DE SINCRONIZACIÓN AUTOMÁTICA HIKVISION INICIADO (Cada 5s)');
-  console.log(`📍 IP Terminal: ${IP} | Nube: ${SUPABASE_URL}`);
+  console.log('===========================================================');
+  console.log('🚀 SERVICIO DE SINCRONIZACION HIKVISION CON PAGINACION TOTAL');
+  console.log(`📍 IP Terminal: ${IP}`);
+  console.log(`☁️ Supabase Cloud: ${SUPABASE_URL}`);
+  console.log('===========================================================');
   await syncCycle();
-  setInterval(syncCycle, 5000);
+  setInterval(syncCycle, 3000);
 }
 
 startDaemon();
