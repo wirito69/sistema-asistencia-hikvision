@@ -445,7 +445,11 @@ export default function DashboardPage() {
       const res = await fetch(
         `/api/reportes?fecha_inicio=${reporteFechaInicio}&fecha_fin=${reporteFechaFin}&tipo_horario=${reporteTipoHorario}&q=${encodeURIComponent(
           reporteSearch
-        )}`
+        )}&_t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+        }
       );
       const data = await res.json();
       setReporteData(data);
@@ -457,6 +461,13 @@ export default function DashboardPage() {
     }
   };
 
+  // Cargar datos automáticamente al cambiar a la pestaña de reportes
+  useEffect(() => {
+    if (activeTab === "reportes") {
+      handleFetchReporte();
+    }
+  }, [activeTab]);
+
   // Exportar Reporte a Excel (.xlsx) con SheetJS (obtiene datos frescos en vivo)
   const handleExportExcel = async () => {
     setIsGeneratingReporte(true);
@@ -465,7 +476,11 @@ export default function DashboardPage() {
       const res = await fetch(
         `/api/reportes?fecha_inicio=${reporteFechaInicio}&fecha_fin=${reporteFechaFin}&tipo_horario=${reporteTipoHorario}&q=${encodeURIComponent(
           reporteSearch
-        )}`
+        )}&_t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+        }
       );
       if (res.ok) {
         currentData = await res.json();

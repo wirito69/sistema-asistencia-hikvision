@@ -254,10 +254,12 @@ export async function GET(request: NextRequest) {
             docente.tipo_horario === "Todos los Horarios" ||
             docente.tipo_horario === "Ambos";
 
-          if (isWeekend && (docente.tipo_horario === "Fin de Semana" || isBoth)) return true;
-          if (isMWF && (docente.tipo_horario === "Entre Semana" || isBoth)) return true;
-          // Si el docente marcó asistencia en esta fecha, incluirlo siempre
-          if (dayLogs.some((l) => matchDNI(l.employee_id, docente.employee_id))) return true;
+          if (isWeekend) {
+            return docente.tipo_horario === "Fin de Semana" || isBoth;
+          }
+          if (isMWF) {
+            return docente.tipo_horario === "Entre Semana" || isBoth;
+          }
           return false;
         })
         .sort(sortAulasNatural);
