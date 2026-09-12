@@ -499,6 +499,25 @@ export default function DashboardPage() {
         "% ASISTENCIA": `${c.porcentaje_asistencia}%`,
       }));
 
+      // Helper para asegurar formato estricto HH:MM:SS (Horas:Minutos:Segundos)
+      const formatTimeHHMMSS = (val: string | null | undefined): string => {
+        if (!val || val === "--:--" || val === "--:--:--") return "--:--:--";
+        const clean = val.trim();
+        const parts = clean.split(":");
+        if (parts.length === 2) {
+          const h = parts[0].padStart(2, "0");
+          const m = parts[1].padStart(2, "0");
+          return `${h}:${m}:00`;
+        }
+        if (parts.length === 3) {
+          const h = parts[0].padStart(2, "0");
+          const m = parts[1].padStart(2, "0");
+          const s = parts[2].padStart(2, "0");
+          return `${h}:${m}:${s}`;
+        }
+        return clean;
+      };
+
       // 2. Hoja Detalle Día a Día
       const wsDetalleData = (currentData.detalle || []).map((d: any) => ({
         FECHA: d.fecha,
@@ -507,8 +526,8 @@ export default function DashboardPage() {
         DOCENTE: d.docente,
         AULA: d.aula,
         CURSO: d.curso,
-        "HORA ENTRADA": d.hora_entrada || "--:--",
-        "HORA SALIDA": d.hora_salida || "--:--",
+        "HORA ENTRADA": formatTimeHHMMSS(d.hora_entrada),
+        "HORA SALIDA": formatTimeHHMMSS(d.hora_salida),
         ESTADO: d.estado,
         "MIN. TARDANZA": d.minutos_tardanza,
         "HORAS DICTADAS": d.horas_dictadas,
