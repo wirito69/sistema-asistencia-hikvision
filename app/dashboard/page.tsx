@@ -514,26 +514,20 @@ export default function DashboardPage() {
         "% ASISTENCIA": `${c.porcentaje_asistencia}%`,
       }));
 
-      // Helper para asegurar formato estricto HH:MM:SS (Horas:Minutos:Segundos)
-      const formatTimeHHMMSS = (val: string | null | undefined): string => {
-        if (!val || val === "--:--" || val === "--:--:--") return "--:--:--";
+      // Helper para asegurar formato estricto HH:MM (Horas y Minutos)
+      const formatTimeHHMM = (val: string | null | undefined): string => {
+        if (!val || val === "--:--" || val === "--:--:--") return "--:--";
         const clean = val.trim();
         const parts = clean.split(":");
-        if (parts.length === 2) {
+        if (parts.length >= 2) {
           const h = parts[0].padStart(2, "0");
           const m = parts[1].padStart(2, "0");
-          return `${h}:${m}:00`;
-        }
-        if (parts.length === 3) {
-          const h = parts[0].padStart(2, "0");
-          const m = parts[1].padStart(2, "0");
-          const s = parts[2].padStart(2, "0");
-          return `${h}:${m}:${s}`;
+          return `${h}:${m}`;
         }
         return clean;
       };
 
-      // 2. Hoja Detalle Día a Día
+      // 1. Hoja Detalle Día a Día (Pestaña Principal)
       const wsDetalleData = (currentData.detalle || []).map((d: any) => ({
         FECHA: d.fecha,
         DIA: d.dia_semana,
@@ -541,19 +535,19 @@ export default function DashboardPage() {
         DOCENTE: d.docente,
         AULA: d.aula,
         CURSO: d.curso,
-        "HORA ENTRADA": formatTimeHHMMSS(d.hora_entrada),
-        "HORA SALIDA": formatTimeHHMMSS(d.hora_salida),
+        "HORA ENTRADA": formatTimeHHMM(d.hora_entrada),
+        "HORA SALIDA": formatTimeHHMM(d.hora_salida),
         ESTADO: d.estado,
         "MIN. TARDANZA": d.minutos_tardanza,
         "HORAS DICTADAS": d.horas_dictadas,
       }));
 
       const wb = XLSX.utils.book_new();
-      const wsConsolidado = XLSX.utils.json_to_sheet(wsConsolidadoData);
       const wsDetalle = XLSX.utils.json_to_sheet(wsDetalleData);
+      const wsConsolidado = XLSX.utils.json_to_sheet(wsConsolidadoData);
 
-      XLSX.utils.book_append_sheet(wb, wsConsolidado, "Consolidado_Docentes");
       XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle_Marcaciones");
+      XLSX.utils.book_append_sheet(wb, wsConsolidado, "Consolidado_Docentes");
 
       XLSX.writeFile(
         wb,
