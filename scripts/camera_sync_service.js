@@ -254,10 +254,10 @@ async function syncCycle() {
     const events = await fetchAllCameraEventsToday(todayPeru);
     if (events.length === 0) return;
 
-    // Obtener marcaciones existentes en Supabase
+    // Obtener marcaciones existentes en Supabase de hoy
     const { data: existingLogs, error: dbErr } = await supabase
       .from('access_logs')
-      .select('id, employee_id, timestamp, picture_url')
+      .select('id, employee_id, timestamp, picture_url, tipo_evento')
       .gte('timestamp', `${todayPeru}T00:00:00.000Z`);
 
     if (dbErr) {
@@ -269,14 +269,12 @@ async function syncCycle() {
     }
     failCount = 0;
 
-    const existingMap = new Map();
+    // Mapear por DNI normalizado para verificación por franja horaria / anti-rebote
+    const existingByDni = new Map();
     (existingLogs || []).forEach(log => {
       const dni = normalizeDNI(log.employee_id);
-      const t = new Date(log.timestamp).getTime();
-      const minBucket = Math.round(t / 60000);
-      existingMap.set(`${dni}_${minBucket}`, log);
-      existingMap.set(`${dni}_${minBucket - 1}`, log);
-      existingMap.set(`${dni}_${minBucket + 1}`, log);
+      if (!existingByDni.has(dni)) existingByDni.set(dni, []);
+      existingByDni.get(dni).push(log);
     });
 
     let newInserted = 0;
@@ -288,13 +286,20 @@ async function syncCycle() {
 
       const eventDate = new Date(ev.time);
       const eventTimestamp = eventDate.getTime();
-      const minBucket = Math.round(eventTimestamp / 60000);
-      const key = `${dni}_${minBucket}`;
+      const tipo = clasificarMarcacionPorHorario(eventDate);
+      const docLogs = existingByDni.get(dni) || [];
 
-      let logRecord = existingMap.get(key);
-      let pictureUrl = logRecord?.picture_url || null;
+      // Detección de duplicado inteligente:
+      // Si ya existe una marcación con el mismo tipo de evento hoy, o a menos de 15 minutos de diferencia
+      const existingMatch = docLogs.find(l => {
+        const lTime = new Date(l.timestamp).getTime();
+        const diffMin = Math.abs(eventTimestamp - lTime) / 60000;
+        return l.tipo_evento === tipo || diffMin < 15;
+      });
 
-      // Descargar foto si no existe
+      let pictureUrl = existingMatch?.picture_url || null;
+
+      // Descargar foto si es necesario
       if (!pictureUrl && ev.pictureURL) {
         try {
           const photoBuffer = await fetchPhotoBufferFromCamera(ev.pictureURL);
@@ -311,36 +316,37 @@ async function syncCycle() {
               pictureUrl = `${SUPABASE_URL}/storage/v1/object/public/access-captures/${fileName}`;
             }
           }
-        } catch (e) {
-          // Si falla la foto, continuar con la asistencia
-        }
+        } catch (e) {}
       }
 
-      if (!logRecord) {
-        const tipo = clasificarMarcacionPorHorario(eventDate);
-        const horaStr = eventDate.toLocaleTimeString('es-PE', { timeZone: 'America/Lima' });
-
-        const { data: inserted, error: insErr } = await supabase.from('access_logs').insert({
-          employee_id: dni,
-          employee_name: ev.name || 'Docente Registrado',
-          tipo_evento: tipo,
-          picture_url: pictureUrl,
-          timestamp: eventDate.toISOString()
-        }).select('id').single();
-
-        if (inserted) {
-          existingMap.set(key, { id: inserted.id, picture_url: pictureUrl });
-          existingMap.set(`${dni}_${minBucket - 1}`, { id: inserted.id, picture_url: pictureUrl });
-          existingMap.set(`${dni}_${minBucket + 1}`, { id: inserted.id, picture_url: pictureUrl });
-          newInserted++;
-          console.log(`⚡ [ASISTENCIA REGISTRADA] ${horaStr} | DNI: ${dni} | ${ev.name} | ${tipo} | Foto: ${pictureUrl ? 'OK' : 'NO'}`);
-        } else if (insErr) {
-          console.error('[Error insertando]:', insErr.message);
+      if (existingMatch) {
+        // Ya existe asistencia para este docente en esta franja
+        if (!existingMatch.picture_url && pictureUrl) {
+          await supabase.from('access_logs').update({ picture_url: pictureUrl }).eq('id', existingMatch.id);
+          existingMatch.picture_url = pictureUrl;
+          console.log(`📷 [Foto actualizada para registro existente]: DNI ${dni}`);
         }
-      } else if (!logRecord.picture_url && pictureUrl) {
-        await supabase.from('access_logs').update({ picture_url: pictureUrl }).eq('id', logRecord.id);
-        logRecord.picture_url = pictureUrl;
-        console.log(`📷 [Foto sincronizada]: DNI ${dni}`);
+        continue; // NO DUPLICAR
+      }
+
+      // Insertar nuevo registro
+      const horaStr = eventDate.toLocaleTimeString('es-PE', { timeZone: 'America/Lima' });
+
+      const { data: inserted, error: insErr } = await supabase.from('access_logs').insert({
+        employee_id: dni,
+        employee_name: ev.name || 'Docente Registrado',
+        tipo_evento: tipo,
+        picture_url: pictureUrl,
+        timestamp: eventDate.toISOString()
+      }).select('id, employee_id, timestamp, picture_url, tipo_evento').single();
+
+      if (inserted) {
+        if (!existingByDni.has(dni)) existingByDni.set(dni, []);
+        existingByDni.get(dni).push(inserted);
+        newInserted++;
+        console.log(`⚡ [ASISTENCIA REGISTRADA] ${horaStr} | DNI: ${dni} | ${ev.name} | ${tipo} | Foto: ${pictureUrl ? 'OK' : 'NO'}`);
+      } else if (insErr) {
+        console.error('[Error insertando]:', insErr.message);
       }
     }
 
@@ -356,7 +362,7 @@ async function syncCycle() {
 
 async function startDaemon() {
   console.log('===========================================================');
-  console.log('🚀 SERVICIO DE SINCRONIZACION HIKVISION CON PAGINACION TOTAL');
+  console.log('🚀 SERVICIO DE SINCRONIZACION HIKVISION CON ANTI-DUPLICADOS');
   console.log(`📍 IP Terminal: ${IP}`);
   console.log(`☁️ Supabase Cloud: ${SUPABASE_URL}`);
   console.log('===========================================================');

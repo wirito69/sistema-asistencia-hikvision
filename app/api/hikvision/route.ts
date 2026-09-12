@@ -186,12 +186,13 @@ export async function POST(req: NextRequest) {
       : `Docente ${normalizedEmployeeId}`;
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const peruDateStr = now.toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+    const startOfToday = `${peruDateStr}T00:00:00.000Z`;
 
     // Clasificar según la hora actual (+- 30 min de tolerancia de salida/entrada)
     let { tipoEvento, slotNombre } = clasificarMarcacionPorHorario(now);
 
-    // Obtener marcaciones de hoy para anti-rebote (3 min) y detección de salida
+    // Obtener marcaciones de hoy para anti-rebote y deduplicación exacta
     const { data: todayLogs } = await supabase
       .from("access_logs")
       .select("*")
@@ -202,12 +203,31 @@ export async function POST(req: NextRequest) {
     if (todayLogs && todayLogs.length > 0) {
       const lastLog = todayLogs[0];
       const lastLogTime = new Date(lastLog.timestamp).getTime();
-      const diffMinutes = (now.getTime() - lastLogTime) / (1000 * 60);
+      const diffMinutes = Math.abs(now.getTime() - lastLogTime) / (1000 * 60);
 
-      // Anti-rebote: Si marcó hace menos de 2 minutos, ignorar el segundo pase inmediato
-      if (diffMinutes < 2) {
-        console.log(`[DOBLE MARCAJE IGNORADO] ${finalName} (ID: ${normalizedEmployeeId}) marcó hace ${Math.round(diffMinutes * 60)}s.`);
-        return NextResponse.json({ statusCode: 1, statusString: "Ignored Duplicate (Anti-rebound)" }, { status: 200 });
+      // Si ya tiene una marcación con el mismo tipo_evento en el mismo turno o hace menos de 15 minutos
+      const existingSameType = todayLogs.find((l) => l.tipo_evento === tipoEvento);
+      if (diffMinutes < 15 || existingSameType) {
+        const targetLog = existingSameType || lastLog;
+        if (!targetLog.picture_url && imageBuffer && imageBuffer.length > 0) {
+          try {
+            const fileName = `captures/${Date.now()}_${normalizedEmployeeId}.jpg`;
+            const { error: upErr } = await supabase.storage
+              .from("access-captures")
+              .upload(fileName, imageBuffer, {
+                contentType: imageMimeType,
+                upsert: true,
+              });
+            if (!upErr) {
+              const newPicUrl = `https://ttadifnnamibraysbrbm.supabase.co/storage/v1/object/public/access-captures/${fileName}`;
+              await supabase.from("access_logs").update({ picture_url: newPicUrl }).eq("id", targetLog.id);
+            }
+          } catch (e) {
+            console.warn("Error actualizando foto de registro existente:", e);
+          }
+        }
+        console.log(`[DOBLE MARCAJE IGNORADO] ${finalName} (ID: ${normalizedEmployeeId}) ya tiene registro de ${tipoEvento} hoy.`);
+        return NextResponse.json({ statusCode: 1, statusString: "Ignored Duplicate" }, { status: 200 });
       }
     }
 
