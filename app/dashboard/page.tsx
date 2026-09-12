@@ -457,16 +457,34 @@ export default function DashboardPage() {
     }
   };
 
-  // Exportar Reporte a Excel (.xlsx) con SheetJS
-  const handleExportExcel = () => {
-    if (!reporteData) {
-      alert("Por favor genera el reporte primero antes de exportar.");
+  // Exportar Reporte a Excel (.xlsx) con SheetJS (obtiene datos frescos en vivo)
+  const handleExportExcel = async () => {
+    setIsGeneratingReporte(true);
+    let currentData = reporteData;
+    try {
+      const res = await fetch(
+        `/api/reportes?fecha_inicio=${reporteFechaInicio}&fecha_fin=${reporteFechaFin}&tipo_horario=${reporteTipoHorario}&q=${encodeURIComponent(
+          reporteSearch
+        )}`
+      );
+      if (res.ok) {
+        currentData = await res.json();
+        setReporteData(currentData);
+      }
+    } catch (e) {
+      console.warn("Error al refrescar reporte previo a exportación, usando estado actual:", e);
+    } finally {
+      setIsGeneratingReporte(false);
+    }
+
+    if (!currentData || !currentData.detalle) {
+      alert("No se encontraron datos para el rango de fechas seleccionado.");
       return;
     }
 
     try {
       // 1. Hoja Consolidado
-      const wsConsolidadoData = (reporteData.consolidado || []).map((c: any) => ({
+      const wsConsolidadoData = (currentData.consolidado || []).map((c: any) => ({
         DNI: c.dni,
         "NOMBRES Y APELLIDOS": c.docente,
         AULA: c.aula,
@@ -482,7 +500,7 @@ export default function DashboardPage() {
       }));
 
       // 2. Hoja Detalle Día a Día
-      const wsDetalleData = (reporteData.detalle || []).map((d: any) => ({
+      const wsDetalleData = (currentData.detalle || []).map((d: any) => ({
         FECHA: d.fecha,
         DIA: d.dia_semana,
         DNI: d.dni,
