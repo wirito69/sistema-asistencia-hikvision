@@ -86,28 +86,36 @@ export async function POST(req: NextRequest) {
             } else if (value.startsWith("data:image/")) {
               const base64Data = value.split(",")[1];
               imageBuffer = Buffer.from(base64Data, "base64");
-            } else if (value.trim().startsWith("{") || lowerKey.includes("event") || lowerKey.includes("log")) {
+            } else if (value.trim().startsWith("{") || value.trim().startsWith("<") || lowerKey.includes("event") || lowerKey.includes("log") || lowerKey.includes("xml")) {
               try {
-                const parsed = JSON.parse(value);
-                const event = parsed.AccessControllerEvent || parsed.EventNotificationAlert || parsed.event_log || parsed;
+                if (value.trim().startsWith("<") || value.includes("<AccessControllerEvent") || value.includes("<EventNotificationAlert")) {
+                  // Extracción de XML
+                  const xmlIdMatch = value.match(/<(?:employeeNoString|employeeNo|employee_id|cardNo)>([^<]+)<\/(?:employeeNoString|employeeNo|employee_id|cardNo)>/i);
+                  const xmlNameMatch = value.match(/<(?:name|employee_name|employeeName|userName|personName)>([^<]+)<\/(?:name|employee_name|employeeName|userName|personName)>/i);
+                  if (xmlIdMatch && xmlIdMatch[1].trim() !== "0") employeeId = xmlIdMatch[1].trim();
+                  if (xmlNameMatch && xmlNameMatch[1].trim() !== "null" && xmlNameMatch[1].trim() !== "Personal Registrado") employeeName = xmlNameMatch[1].trim();
+                } else {
+                  const parsed = JSON.parse(value);
+                  const event = parsed.AccessControllerEvent || parsed.EventNotificationAlert || parsed.event_log || parsed;
 
-                const extractedId = event.employeeNoString || event.employeeNo || event.employee_id || event.CardNo || event.cardNo;
-                if (extractedId && String(extractedId).trim() && extractedId !== "0") {
-                  employeeId = String(extractedId).trim();
-                }
+                  const extractedId = event.employeeNoString || event.employeeNo || event.employee_id || event.CardNo || event.cardNo;
+                  if (extractedId && String(extractedId).trim() && extractedId !== "0") {
+                    employeeId = String(extractedId).trim();
+                  }
 
-                const extractedName = event.name || event.employee_name || event.employeeName || event.userName || event.personName;
-                if (extractedName && String(extractedName).trim() && extractedName !== "null" && extractedName !== "Personal Registrado") {
-                  employeeName = String(extractedName).trim();
-                }
+                  const extractedName = event.name || event.employee_name || event.employeeName || event.userName || event.personName;
+                  if (extractedName && String(extractedName).trim() && extractedName !== "null" && extractedName !== "Personal Registrado") {
+                    employeeName = String(extractedName).trim();
+                  }
 
-                if (event.pictureBase64 || event.faceImage) {
-                  const b64 = (event.pictureBase64 || event.faceImage).replace(/^data:image\/\w+;base64,/, "");
-                  imageBuffer = Buffer.from(b64, "base64");
+                  if (event.pictureBase64 || event.faceImage) {
+                    const b64 = (event.pictureBase64 || event.faceImage).replace(/^data:image\/\w+;base64,/, "");
+                    imageBuffer = Buffer.from(b64, "base64");
+                  }
                 }
               } catch {
-                const matchId = value.match(/"(?:employeeNoString|employeeNo|employee_id|cardNo)"\s*:\s*"([^"]+)"/i);
-                const matchName = value.match(/"(?:name|employee_name|employeeName|userName|personName)"\s*:\s*"([^"]+)"/i);
+                const matchId = value.match(/(?:employeeNoString|employeeNo|employee_id|cardNo)[^>":]*[>":]\s*([^<",\s}]+)/i);
+                const matchName = value.match(/(?:name|employee_name|employeeName|userName|personName)[^>":]*[>":]\s*([^<",\s}]+)/i);
                 if (matchId && matchId[1] !== "0") employeeId = matchId[1].trim();
                 if (matchName && matchName[1] !== "null" && matchName[1] !== "Personal Registrado") employeeName = matchName[1].trim();
               }
@@ -128,21 +136,29 @@ export async function POST(req: NextRequest) {
     } else {
       try {
         const rawBody = await req.text();
-        const data = JSON.parse(rawBody);
-        const event = data.AccessControllerEvent || data.EventNotificationAlert || data.event_log || data;
-        const extractedId = event.employeeNoString || event.employeeNo || event.employee_id || event.CardNo || data.employeeNo;
-        if (extractedId && String(extractedId).trim() && extractedId !== "0") {
-          employeeId = String(extractedId).trim();
-        }
+        if (rawBody.trim().startsWith("<") || rawBody.includes("<AccessControllerEvent") || rawBody.includes("<EventNotificationAlert")) {
+          // Extracción de XML
+          const xmlIdMatch = rawBody.match(/<(?:employeeNoString|employeeNo|employee_id|cardNo)>([^<]+)<\/(?:employeeNoString|employeeNo|employee_id|cardNo)>/i);
+          const xmlNameMatch = rawBody.match(/<(?:name|employee_name|employeeName|userName|personName)>([^<]+)<\/(?:name|employee_name|employeeName|userName|personName)>/i);
+          if (xmlIdMatch && xmlIdMatch[1].trim() !== "0") employeeId = xmlIdMatch[1].trim();
+          if (xmlNameMatch && xmlNameMatch[1].trim() !== "null" && xmlNameMatch[1].trim() !== "Personal Registrado") employeeName = xmlNameMatch[1].trim();
+        } else {
+          const data = JSON.parse(rawBody);
+          const event = data.AccessControllerEvent || data.EventNotificationAlert || data.event_log || data;
+          const extractedId = event.employeeNoString || event.employeeNo || event.employee_id || event.CardNo || data.employeeNo;
+          if (extractedId && String(extractedId).trim() && extractedId !== "0") {
+            employeeId = String(extractedId).trim();
+          }
 
-        const extractedName = event.name || event.employee_name || event.employeeName || event.userName || data.name;
-        if (extractedName && String(extractedName).trim() && extractedName !== "null" && extractedName !== "Personal Registrado") {
-          employeeName = String(extractedName).trim();
-        }
+          const extractedName = event.name || event.employee_name || event.employeeName || event.userName || data.name;
+          if (extractedName && String(extractedName).trim() && extractedName !== "null" && extractedName !== "Personal Registrado") {
+            employeeName = String(extractedName).trim();
+          }
 
-        if (event.pictureBase64 || event.faceImage || data.pictureBase64) {
-          const b64 = (event.pictureBase64 || event.faceImage || data.pictureBase64).replace(/^data:image\/\w+;base64,/, "");
-          imageBuffer = Buffer.from(b64, "base64");
+          if (event.pictureBase64 || event.faceImage || data.pictureBase64) {
+            const b64 = (event.pictureBase64 || event.faceImage || data.pictureBase64).replace(/^data:image\/\w+;base64,/, "");
+            imageBuffer = Buffer.from(b64, "base64");
+          }
         }
       } catch {
         // Ignorar
