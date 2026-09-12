@@ -252,8 +252,7 @@ export async function GET(request: NextRequest) {
           const isBoth =
             docente.tipo_horario === "Ambos Horarios" ||
             docente.tipo_horario === "Todos los Horarios" ||
-            docente.tipo_horario === "Ambos" ||
-            docente.tipo_horario === "Padrón General";
+            docente.tipo_horario === "Ambos";
 
           if (isWeekend && (docente.tipo_horario === "Fin de Semana" || isBoth)) return true;
           if (isMWF && (docente.tipo_horario === "Entre Semana" || isBoth)) return true;
@@ -402,17 +401,19 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    const consolidadoList = Array.from(consolidadoMap.values()).map((c) => {
-      const totalAsistidas = c.total_asistencias + c.total_tardanzas;
-      const pct =
-        c.total_dias_programados > 0
-          ? Math.round((totalAsistidas / c.total_dias_programados) * 100)
-          : 100;
-      return {
-        ...c,
-        porcentaje_asistencia: pct,
-      };
-    });
+    const consolidadoList = Array.from(consolidadoMap.values())
+      .filter((c) => c.total_dias_programados > 0 || c.total_asistencias > 0 || c.total_tardanzas > 0)
+      .map((c) => {
+        const totalAsistidas = c.total_asistencias + c.total_tardanzas;
+        const pct =
+          c.total_dias_programados > 0
+            ? Math.round((totalAsistidas / c.total_dias_programados) * 100)
+            : 100;
+        return {
+          ...c,
+          porcentaje_asistencia: pct,
+        };
+      });
 
     // Registros biométricos brutos
     const rawLogsList = allLogs.map((l) => {
