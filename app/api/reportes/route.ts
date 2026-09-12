@@ -132,18 +132,30 @@ export async function GET(request: NextRequest) {
     const startIso = new Date(targetStart + "T00:00:00-05:00").toISOString();
     const endIso = new Date(targetEnd + "T23:59:59-05:00").toISOString();
 
-    const { data: logsData, error: logsError } = await supabase
-      .from("access_logs")
-      .select("*")
-      .gte("timestamp", startIso)
-      .lte("timestamp", endIso)
-      .order("timestamp", { ascending: true });
+    // Paginación completa para evitar el límite de 1000 registros de PostgREST
+    let logsData: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data: pageData, error: pageError } = await supabase
+        .from("access_logs")
+        .select("*")
+        .gte("timestamp", startIso)
+        .lte("timestamp", endIso)
+        .order("timestamp", { ascending: true })
+        .range(from, from + pageSize - 1);
 
-    if (logsError) {
-      console.error("Error al consultar logs de reporte:", logsError);
+      if (pageError) {
+        console.error("Error al consultar logs de reporte:", pageError);
+        break;
+      }
+      if (!pageData || pageData.length === 0) break;
+      logsData = logsData.concat(pageData);
+      if (pageData.length < pageSize) break;
+      from += pageSize;
     }
 
-    const allLogs = (logsData || []).filter(
+    const allLogs = logsData.filter(
       (l) =>
         l.employee_id &&
         !l.employee_id.startsWith("DEV-") &&
@@ -248,7 +260,6 @@ export async function GET(request: NextRequest) {
       // Docentes programados para este turno
       const dayDocentesList = filteredDocentes
         .filter((docente) => {
-          if (querySearch) return true;
           const isBoth =
             docente.tipo_horario === "Ambos Horarios" ||
             docente.tipo_horario === "Todos los Horarios" ||
