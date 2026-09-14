@@ -262,6 +262,20 @@ export async function POST(req: NextRequest) {
 
     const updatedDocentesList = [...currentDocentes];
 
+    // Archivar docentes anteriores del mismo turno para evitar duplicados en las aulas activas
+    if (defaultSchedule === "Entre Semana" || defaultSchedule === "Fin de Semana") {
+      updatedDocentesList.forEach((d) => {
+        if (
+          d.tipo_horario === defaultSchedule &&
+          d.employee_id !== "72123814" &&
+          d.cargo !== "Personal de Apoyo" &&
+          d.cargo !== "Coordinador"
+        ) {
+          d.tipo_horario = "Padrón General";
+        }
+      });
+    }
+
     for (const r of parsedRows) {
       let matchedDni = r.dni;
       let matchedDoc: DocenteData | null = null;
