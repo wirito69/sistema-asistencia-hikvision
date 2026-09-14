@@ -624,7 +624,7 @@ export default function DashboardPage() {
       if (savedWsp) setWhatsappNumber(savedWsp);
       if (savedApiKey) setCallmebotApiKey(savedApiKey);
 
-      const DOCENTES_VERSION = "v5_ranking_drawer_both_horarios";
+      const DOCENTES_VERSION = "v6_grupo_septiembre_2026";
       const storedVersion = localStorage.getItem("unheval_docentes_version");
 
       if (storedVersion !== DOCENTES_VERSION) {
@@ -670,7 +670,7 @@ export default function DashboardPage() {
           setDocentes(cloudDocentes);
           if (typeof window !== "undefined") {
             localStorage.setItem("unheval_docentes_custom", JSON.stringify(cloudDocentes));
-            localStorage.setItem("unheval_docentes_version", "v5_ranking_drawer_both_horarios");
+            localStorage.setItem("unheval_docentes_version", "v6_grupo_septiembre_2026");
           }
         }
       })
