@@ -210,6 +210,10 @@ export async function GET(request: NextRequest) {
       modalidad: string;
       hora_entrada: string | null;
       hora_salida: string | null;
+      hora_entrada_m?: string | null;
+      hora_salida_m?: string | null;
+      hora_entrada_t?: string | null;
+      hora_salida_t?: string | null;
       total_marcajes: number;
       estado: string;
       badge_estado: string;
