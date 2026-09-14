@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UNHEVAL_DOCENTES_DATA, DocenteData } from "@/lib/docentesData";
+import {
+  obtenerHistorialAsignaciones,
+  obtenerAsignacionParaFecha,
+} from "@/lib/historialAsignaciones";
 import { getSupabaseAdmin } from "@/lib/supabaseDefaults";
 
 export const dynamic = "force-dynamic";
@@ -132,6 +136,9 @@ export async function GET(request: NextRequest) {
       }
     } catch {}
 
+    // Cargar historial de asignaciones para cruce por fechas históricas
+    const historialList = await obtenerHistorialAsignaciones();
+
     // Ampliar rango UTC para abarcar la noche de Perú (+5 horas de margen)
     const startIso = new Date(targetStart + "T00:00:00-05:00").toISOString();
     const endIso = new Date(targetEnd + "T23:59:59-05:00").toISOString();
@@ -150,53 +157,59 @@ export async function GET(request: NextRequest) {
         .range(from, from + pageSize - 1);
 
       if (pageError) {
-        console.error("Error al consultar logs de reporte:", pageError);
+        console.error("Error al consultar access_logs paginado:", pageError);
         break;
       }
-      if (!pageData || pageData.length === 0) break;
-      logsData = logsData.concat(pageData);
-      if (pageData.length < pageSize) break;
-      from += pageSize;
+
+      if (pageData && pageData.length > 0) {
+        logsData = logsData.concat(pageData);
+        if (pageData.length < pageSize) {
+          break;
+        }
+        from += pageSize;
+      } else {
+        break;
+      }
     }
 
+    // Filtrar logs de configuración interna
     const allLogs = logsData.filter(
       (l) =>
-        l.employee_id &&
-        !l.employee_id.startsWith("DEV-") &&
-        !l.employee_id.startsWith("CONFIG_") &&
-        l.employee_name !== "Personal Registrado" &&
-        l.employee_name !== "Marcación Terminal"
+        l.employee_id !== "CONFIG_DOCENTES_UNHEVAL" &&
+        l.employee_id !== "CONFIG_HISTORIAL_ASIGNACIONES" &&
+        l.employee_id !== "CONFIG_HORARIOS_VOZ"
     );
 
-    let filteredDocentes = docentesList.filter((d) => {
-      const horarioStr = String(d.tipo_horario || "");
-      const isBoth =
-        horarioStr === "Ambos Horarios" ||
-        horarioStr === "Todos los Horarios" ||
-        horarioStr === "Ambos";
-
-      if (tipoHorario === "sd" || tipoHorario === "fin_de_semana") {
-        return horarioStr === "Fin de Semana" || isBoth;
+    // Filtrar docentes según parámetros opcionales
+    let filteredDocentes = docentesList;
+    if (tipoHorario) {
+      if (tipoHorario === "sd" || tipoHorario === "fin_de_semana" || tipoHorario === "fin de semana") {
+        filteredDocentes = filteredDocentes.filter(
+          (d) => d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios"
+        );
+      } else if (tipoHorario === "lmv" || tipoHorario === "entre_semana" || tipoHorario === "entre semana") {
+        filteredDocentes = filteredDocentes.filter(
+          (d) => d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios"
+        );
+      } else if (tipoHorario === "ambos") {
+        filteredDocentes = filteredDocentes.filter((d) => d.tipo_horario === "Ambos Horarios");
       }
-      if (tipoHorario === "lmv" || tipoHorario === "entre_semana") {
-        return horarioStr === "Entre Semana" || isBoth;
-      }
-      return true;
-    });
+    }
 
     if (querySearch) {
       filteredDocentes = filteredDocentes.filter(
         (d) =>
           d.name.toLowerCase().includes(querySearch) ||
           d.employee_id.includes(querySearch) ||
-          (d.aula && d.aula.toLowerCase().includes(querySearch)) ||
-          (d.curso && d.curso.toLowerCase().includes(querySearch))
+          d.aula.toLowerCase().includes(querySearch) ||
+          d.curso.toLowerCase().includes(querySearch)
       );
     }
 
+    // Generar lista de días en el rango
     const dateList: string[] = [];
-    const curr = new Date(targetStart + "T00:00:00");
-    const endLimit = new Date(targetEnd + "T00:00:00");
+    const curr = new Date(targetStart + "T12:00:00Z");
+    const endLimit = new Date(targetEnd + "T12:00:00Z");
 
     while (curr <= endLimit) {
       dateList.push(curr.toISOString().split("T")[0]);
@@ -225,7 +238,7 @@ export async function GET(request: NextRequest) {
       horas_dictadas: number;
       foto_captura: string | null;
     }> = [];
-    
+
     const consolidadoMap = new Map<string, any>();
 
     filteredDocentes.forEach((d) => {
@@ -259,12 +272,22 @@ export async function GET(request: NextRequest) {
       }
 
       const diaNombre = dayObj.toLocaleDateString("es-PE", { weekday: "long" });
-      
+
       // FILTRAR LOGS DEL DÍA USANDO LA FECHA LOCAL DE PERÚ
       const dayLogs = allLogs.filter((l) => getPeruDateStr(l.timestamp) === dateStr);
 
-      // Docentes programados para este turno
+      // Docentes programados para este turno evaluados con su aula histórica para la fecha
       const dayDocentesList = filteredDocentes
+        .map((docente) => {
+          const asig = obtenerAsignacionParaFecha(docente.employee_id, dateStr, historialList, docente);
+          return {
+            ...docente,
+            aula: asig.aula,
+            curso: asig.curso,
+            modalidad: asig.modalidad,
+            tipo_horario: asig.tipo_horario,
+          };
+        })
         .filter((docente) => {
           const isBoth =
             docente.tipo_horario === "Ambos Horarios" ||
@@ -450,8 +473,8 @@ export async function GET(request: NextRequest) {
           curso: docente.curso,
           tipo_horario: docente.tipo_horario,
           modalidad: docente.modalidad || "Presencial",
-          hora_entrada: firstLog ? getPeruTimeStr(firstLog.timestamp) : (entM || entT || null),
-          hora_salida: lastLog ? getPeruTimeStr(lastLog.timestamp) : (salT || salM || null),
+          hora_entrada: firstLog ? getPeruTimeStr(firstLog.timestamp) : entM || entT || null,
+          hora_salida: lastLog ? getPeruTimeStr(lastLog.timestamp) : salT || salM || null,
           hora_entrada_m: entM,
           hora_salida_m: salM,
           hora_entrada_t: entT,

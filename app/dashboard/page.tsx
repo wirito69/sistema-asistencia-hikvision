@@ -353,7 +353,7 @@ export default function DashboardPage() {
   const [gestorSearch, setGestorSearch] = useState<string>("");
   const [selectedHorario, setSelectedHorario] = useState<string>("todos");
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"timeline" | "aulas" | "gestor" | "faltan" | "presentes" | "historial" | "reportes" | "ranking" | "horarios" | "notificaciones">("aulas");
+  const [activeTab, setActiveTab] = useState<"timeline" | "aulas" | "gestor" | "faltan" | "presentes" | "historial" | "reportes" | "ranking" | "horarios" | "notificaciones" | "historial_aulas">("aulas");
   const [horarioFilter, setHorarioFilter] = useState<string>("Todos");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [gestorFilter, setGestorFilter] = useState<string>("todos");
@@ -385,11 +385,20 @@ export default function DashboardPage() {
   const [adminPinInput, setAdminPinInput] = useState<string>("");
   const [adminPinError, setAdminPinError] = useState<string>("");
 
-
-  // Estado para el modal de carga de horarios en PDF
+  // Estado para el modal de carga de horarios en Excel / CSV / PDF
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [customGrupoInput, setCustomGrupoInput] = useState<string>("Grupo LMV - Septiembre / Octubre 2026");
+  const [customFechaInicioInput, setCustomFechaInicioInput] = useState<string>("2026-09-14");
+  const [customFechaFinInput, setCustomFechaFinInput] = useState<string>("2026-10-09");
+
+  // Estado para Historial de Asignaciones y Grupos
+  const [historialList, setHistorialList] = useState<any[]>([]);
+  const [gruposList, setGruposList] = useState<any[]>([]);
+  const [isFetchingHistorial, setIsFetchingHistorial] = useState<boolean>(false);
+  const [historialSearch, setHistorialSearch] = useState<string>("");
+  const [selectedGrupoFiltro, setSelectedGrupoFiltro] = useState<string>("todos");
 
   // Estado para el modal de agregar nuevo docente
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -756,24 +765,51 @@ export default function DashboardPage() {
     setTimeout(() => setSaveSuccessMsg(""), 2500);
   };
 
-  // Estado para subida de PDF
+  // Estado para subida de Horarios (Excel, CSV o PDF)
   const [isUploadingPdf, setIsUploadingPdf] = useState<boolean>(false);
-  const [selectedPdfSchedule, setSelectedPdfSchedule] = useState<"Fin de Semana" | "Entre Semana">("Fin de Semana");
+  const [selectedPdfSchedule, setSelectedPdfSchedule] = useState<"Fin de Semana" | "Entre Semana">("Entre Semana");
   const [pdfUploadResult, setPdfUploadResult] = useState<string>("");
+
+  const fetchHistorialAsignaciones = async () => {
+    try {
+      setIsFetchingHistorial(true);
+      const res = await fetch("/api/grupos-historial");
+      const data = await res.json();
+      if (data.success) {
+        setHistorialList(data.historial || []);
+        setGruposList(data.grupos || []);
+      }
+    } catch (e) {
+      console.error("Error fetching historial asignaciones:", e);
+    } finally {
+      setIsFetchingHistorial(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistorialAsignaciones();
+  }, []);
+
+  const handleDownloadPlantillaExcel = () => {
+    window.open("/api/plantilla-horarios", "_blank");
+  };
 
   const handleProcessPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploadingPdf(true);
-    setPdfUploadResult("⏳ Leyendo y extrayendo docentes, aulas y cursos del PDF...");
+    setPdfUploadResult("⏳ Procesando archivo de horarios y registrando salones en el historial...");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("targetSchedule", selectedPdfSchedule);
+      formData.append("grupoNombre", customGrupoInput.trim() || "Grupo LMV - Septiembre 2026");
+      formData.append("fechaInicio", customFechaInicioInput);
+      formData.append("fechaFin", customFechaFinInput);
 
-      const res = await fetch("/api/upload-pdf", {
+      const res = await fetch("/api/upload-horarios", {
         method: "POST",
         body: formData,
       });
@@ -783,17 +819,18 @@ export default function DashboardPage() {
       if (data.success && Array.isArray(data.docentes)) {
         setDocentes(data.docentes);
         await syncDocentesCloud(data.docentes);
+        await fetchHistorialAsignaciones();
         setPdfUploadResult(`✅ ${data.message}`);
         setSaveSuccessMsg(`✅ ${data.message}`);
         setTimeout(() => {
           setShowUploadModal(false);
           setPdfUploadResult("");
-        }, 2000);
+        }, 2500);
       } else {
         setPdfUploadResult(`❌ Error: ${data.error || "No se pudo procesar el archivo"}`);
       }
     } catch (err: unknown) {
-      setPdfUploadResult("❌ Error al procesar el archivo PDF.");
+      setPdfUploadResult("❌ Error al procesar el archivo de horarios.");
     } finally {
       setIsUploadingPdf(false);
     }
@@ -3484,7 +3521,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      {/* MODAL: SUBIR PDF Y AUTO-ASIGNAR HORARIO */}
+      {/* MODAL: SUBIR HORARIOS (EXCEL / CSV / PDF) Y REGISTRO HISTÓRICO */}
       {showUploadModal && (
         <div
           onClick={() => !isUploadingPdf && setShowUploadModal(false)}
@@ -3492,12 +3529,12 @@ export default function DashboardPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border-2 border-indigo-500/60 rounded-3xl p-6 max-w-xl w-full flex flex-col gap-4 shadow-2xl relative"
+            className="bg-slate-900 border-2 border-indigo-500/60 rounded-3xl p-6 max-w-xl w-full flex flex-col gap-4 shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
             <button
               onClick={() => !isUploadingPdf && setShowUploadModal(false)}
               disabled={isUploadingPdf}
-              className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full transition-all"
+              className="absolute top-4 right-4 bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -3507,35 +3544,42 @@ export default function DashboardPage() {
                 <Upload className="w-6 h-6 text-indigo-400" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">Subir Horario PDF y Auto-Asignar</h3>
+                <h3 className="text-xl font-black text-white">Cargar Horarios y Salones</h3>
                 <p className="text-xs text-slate-400">
-                  El sistema lee automáticamente el PDF y auto-coloca las aulas, docentes y cursos
+                  Sube la plantilla en Excel (.xlsx), CSV o PDF para actualizar aulas y guardar en el historial
                 </p>
               </div>
+            </div>
+
+            {/* BOTÓN DESCARGAR PLANTILLA EXCEL */}
+            <div className="bg-gradient-to-r from-emerald-950/80 to-slate-950 border border-emerald-500/40 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-white">¿Necesitas el formato oficial?</p>
+                  <p className="text-[11px] text-slate-400">Descarga la plantilla con ejemplos para L-M-V y Sábados</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadPlantillaExcel}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow transition-all cursor-pointer flex-shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar Plantilla (.xlsx)</span>
+              </button>
             </div>
 
             <div className="flex flex-col gap-3 mt-1">
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase">
-                  1. Selecciona a qué horario corresponde este archivo PDF:
+                  1. Horario o Turno del Grupo:
                 </label>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={() => setSelectedPdfSchedule("Fin de Semana")}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${
-                      selectedPdfSchedule === "Fin de Semana"
-                        ? "bg-purple-600 border-purple-400 text-white shadow-md"
-                        : "bg-slate-950 border-slate-700 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    <Calendar className="w-3.5 h-3.5" /> Sábados y Domingos (S-D)
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => setSelectedPdfSchedule("Entre Semana")}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       selectedPdfSchedule === "Entre Semana"
                         ? "bg-indigo-600 border-indigo-400 text-white shadow-md"
                         : "bg-slate-950 border-slate-700 text-slate-400 hover:text-white"
@@ -3543,25 +3587,71 @@ export default function DashboardPage() {
                   >
                     <CalendarClock className="w-3.5 h-3.5" /> Lun, Mié y Vie (L-M-V)
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPdfSchedule("Fin de Semana")}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      selectedPdfSchedule === "Fin de Semana"
+                        ? "bg-purple-600 border-purple-400 text-white shadow-md"
+                        : "bg-slate-950 border-slate-700 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" /> Sábados y Domingos (S-D)
+                  </button>
                 </div>
               </div>
 
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase">
-                  2. Selecciona o arrastra el archivo PDF oficial:
+                  2. Nombre del Grupo o Ciclo (para el Historial):
+                </label>
+                <input
+                  type="text"
+                  value={customGrupoInput}
+                  onChange={(e) => setCustomGrupoInput(e.target.value)}
+                  placeholder="Ej: Grupo LMV - Septiembre / Octubre 2026"
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white w-full mt-1 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Fecha Inicio:</label>
+                  <input
+                    type="date"
+                    value={customFechaInicioInput}
+                    onChange={(e) => setCustomFechaInicioInput(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white w-full mt-1 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Fecha Fin:</label>
+                  <input
+                    type="date"
+                    value={customFechaFinInput}
+                    onChange={(e) => setCustomFechaFinInput(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white w-full mt-1 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">
+                  3. Selecciona o arrastra el archivo (.xlsx, .xls, .csv, .pdf):
                 </label>
                 <div className="mt-1 border-2 border-dashed border-indigo-500/50 rounded-2xl p-6 flex flex-col items-center justify-center text-center bg-indigo-950/20 hover:bg-indigo-950/40 transition-all cursor-pointer relative">
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".xlsx,.xls,.csv,.pdf"
                     disabled={isUploadingPdf}
                     onChange={handleProcessPdf}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    id="pdf-upload-input"
+                    id="horarios-upload-input"
                   />
-                  <FileText className="w-10 h-10 text-indigo-400 mb-2 animate-pulse" />
-                  <p className="text-sm font-bold text-white">Haz clic aquí para seleccionar el archivo PDF</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Soporta cualquier formato de distribución de aulas UNHEVAL</p>
+                  <FileSpreadsheet className="w-10 h-10 text-emerald-400 mb-2 animate-pulse" />
+                  <p className="text-sm font-bold text-white">Haz clic aquí para seleccionar el archivo</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Soporta Excel (Control de Aulas / Plantilla), CSV y PDF</p>
                 </div>
               </div>
 
@@ -4129,6 +4219,21 @@ export default function DashboardPage() {
             >
               <Users className="w-4 h-4" />
               <span>👨‍🏫 Gestor de Docentes & Aulas</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("historial_aulas");
+                fetchHistorialAsignaciones();
+              }}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "historial_aulas"
+                  ? "bg-purple-600 text-white shadow-md font-black"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900"
+              }`}
+            >
+              <Layers className="w-4 h-4 text-purple-400" />
+              <span>📚 Historial de Aulas & Grupos</span>
             </button>
 
             <button
@@ -5327,6 +5432,221 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 4.2.1.B PESTAÑA: HISTORIAL DE AULAS Y ASIGNACIONES POR GRUPOS */}
+        {activeTab === "historial_aulas" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden gap-4 p-1">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4 flex-1 overflow-hidden">
+              {/* CABECERA Y ACCIONES */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-slate-800 pb-4 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="bg-purple-500/20 p-2.5 rounded-2xl border border-purple-500/40 shadow-inner">
+                    <Layers className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <span>Historial de Aulas y Asignaciones por Grupos</span>
+                      <span className="text-[10px] bg-purple-950 border border-purple-500/40 text-purple-300 px-2 py-0.5 rounded-full font-bold">
+                        {historialList.length} Asignaciones Registradas
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Registro de salones, cursos y vigencias asignadas a docentes para cada ciclo o grupo
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPlantillaExcel}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                    title="Descargar archivo Excel modelo listo para completar"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Descargar Plantilla (.xlsx)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadModal(true)}
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-indigo-950/50 cursor-pointer transition-all"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Cargar Nuevo Grupo / Horario</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* TARJETAS RESUMEN DE GRUPOS REGISTRADOS */}
+              {gruposList.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 flex-shrink-0">
+                  {gruposList.map((g, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedGrupoFiltro(selectedGrupoFiltro === g.nombre ? "todos" : g.nombre)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                        selectedGrupoFiltro === g.nombre
+                          ? "bg-purple-950/70 border-purple-500 shadow-md ring-1 ring-purple-500"
+                          : "bg-slate-950/60 border-slate-800 hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-xs font-black text-white line-clamp-1">{g.nombre}</h4>
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                            g.turno === "Fin de Semana"
+                              ? "bg-purple-900/80 text-purple-300"
+                              : "bg-indigo-900/80 text-indigo-300"
+                          }`}
+                        >
+                          {g.turno}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>📅 {g.fechaInicio} al {g.fechaFin}</span>
+                        <span className="font-bold text-slate-200">👥 {g.docentesCount} Docentes</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* FILTRO Y BÚSQUEDA */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex-shrink-0">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      value={historialSearch}
+                      onChange={(e) => setHistorialSearch(e.target.value)}
+                      placeholder="Buscar docente, DNI, aula o curso..."
+                      className="bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 w-full focus:border-purple-500 outline-none"
+                    />
+                  </div>
+
+                  <select
+                    value={selectedGrupoFiltro}
+                    onChange={(e) => setSelectedGrupoFiltro(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:border-purple-500 outline-none"
+                  >
+                    <option value="todos">Todos los Grupos</option>
+                    {gruposList.map((g, idx) => (
+                      <option key={idx} value={g.nombre}>
+                        {g.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-xs text-slate-400">
+                  Mostrando{" "}
+                  <span className="font-bold text-white">
+                    {
+                      historialList.filter((h) => {
+                        const matchGroup = selectedGrupoFiltro === "todos" || h.grupo_nombre === selectedGrupoFiltro;
+                        const matchQ =
+                          !historialSearch ||
+                          h.docente_nombre?.toLowerCase().includes(historialSearch.toLowerCase()) ||
+                          h.docente_dni?.includes(historialSearch) ||
+                          h.aula?.toLowerCase().includes(historialSearch.toLowerCase()) ||
+                          h.curso?.toLowerCase().includes(historialSearch.toLowerCase());
+                        return matchGroup && matchQ;
+                      }).length
+                    }
+                  </span>{" "}
+                  asignaciones
+                </div>
+              </div>
+
+              {/* TABLA DE ASIGNACIONES */}
+              <div className="flex-1 min-h-0 overflow-y-auto border border-slate-800 rounded-xl bg-slate-950/40">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-black sticky top-0 z-10 border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Docente / DNI</th>
+                      <th className="p-3">Salón / Aula</th>
+                      <th className="p-3">Curso & Programa</th>
+                      <th className="p-3">Turno / Horario</th>
+                      <th className="p-3">Grupo / Ciclo</th>
+                      <th className="p-3">Fechas de Dictado</th>
+                      <th className="p-3">Modalidad</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {historialList
+                      .filter((h) => {
+                        const matchGroup = selectedGrupoFiltro === "todos" || h.grupo_nombre === selectedGrupoFiltro;
+                        const matchQ =
+                          !historialSearch ||
+                          h.docente_nombre?.toLowerCase().includes(historialSearch.toLowerCase()) ||
+                          h.docente_dni?.includes(historialSearch) ||
+                          h.aula?.toLowerCase().includes(historialSearch.toLowerCase()) ||
+                          h.curso?.toLowerCase().includes(historialSearch.toLowerCase());
+                        return matchGroup && matchQ;
+                      })
+                      .map((h, idx) => (
+                        <tr key={idx} className="hover:bg-slate-900/60 transition-colors">
+                          <td className="p-3">
+                            <div className="font-bold text-white text-xs">{h.docente_nombre}</div>
+                            <div className="text-[11px] font-mono text-slate-400">DNI: {h.docente_dni}</div>
+                          </td>
+                          <td className="p-3">
+                            <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-md font-bold text-xs">
+                              📍 {h.aula}
+                            </span>
+                          </td>
+                          <td className="p-3 max-w-xs">
+                            <div className="font-semibold text-slate-200 line-clamp-1">{h.curso}</div>
+                            {h.programa && (
+                              <div className="text-[10px] text-slate-400 line-clamp-1">{h.programa}</div>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                h.tipo_horario === "Fin de Semana"
+                                  ? "bg-purple-950 text-purple-300 border border-purple-500/30"
+                                  : "bg-indigo-950 text-indigo-300 border border-indigo-500/30"
+                              }`}
+                            >
+                              {h.tipo_horario}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className="text-slate-300 font-medium text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                              {h.grupo_nombre}
+                            </span>
+                          </td>
+                          <td className="p-3 max-w-xs text-[11px] text-slate-400">
+                            {h.fechas_especificas && h.fechas_especificas.length > 0 ? (
+                              <span title={h.fechas_especificas.join(", ")}>
+                                {h.fechas_especificas.length} sesiones ({h.fecha_inicio} a {h.fecha_fin})
+                              </span>
+                            ) : (
+                              <span>{h.fecha_inicio} al {h.fecha_fin}</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                h.modalidad?.includes("Virtual")
+                                  ? "bg-blue-950 text-blue-300 border border-blue-500/30"
+                                  : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
+                              }`}
+                            >
+                              {h.modalidad?.includes("Virtual") ? "💻 Virtual" : "🏫 Presencial"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
