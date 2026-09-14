@@ -22,16 +22,20 @@ export async function OPTIONS() {
 
 function normalizeDNI(id: string | null | undefined): string {
   if (!id) return "";
-  const cleaned = id.replace(/\D/g, "");
-  if (cleaned.length === 0) return id.trim();
-  return cleaned.padStart(8, "0");
+  let s = String(id).trim().replace(/^[oO]/, "0").replace(/[^0-9a-zA-Z]/g, "");
+  if (/^\d+$/.test(s) && s.length < 8 && s.length >= 6) {
+    s = s.padStart(8, "0");
+  }
+  return s;
 }
 
 function matchDNI(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const aClean = a.replace(/^0+/, "");
-  const bClean = b.replace(/^0+/, "");
+  const normA = normalizeDNI(a);
+  const normB = normalizeDNI(b);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  const aClean = normA.replace(/^0+/, "");
+  const bClean = normB.replace(/^0+/, "");
   return aClean.length > 0 && aClean === bClean;
 }
 
