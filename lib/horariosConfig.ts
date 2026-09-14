@@ -22,9 +22,9 @@ export interface HorariosConfig {
 }
 
 export const DEFAULT_HORARIOS_CONFIG: HorariosConfig = {
-  version: "v1_2026",
+  version: "v2_2026_strict",
   entreSemana: {
-    horaInicioEntrada: "14:00",
+    horaInicioEntrada: "17:00", // A partir de las 17:00 (5:00 PM) para clase de 18:00
     horaFinEntrada: "20:30",
     horaInicioSalida: "20:30",
     horaFinSalida: "23:59",
@@ -51,7 +51,7 @@ export const DEFAULT_HORARIOS_CONFIG: HorariosConfig = {
     habilitarVoz: true,
     habilitarEntrada: true,
     habilitarSalida: true,
-    horaMinimaVoz: "06:00",
+    horaMinimaVoz: "17:00",
     horaMaximaVoz: "23:00",
   },
 };

@@ -209,12 +209,12 @@ function getSlotIndexForLog(isoTimestamp: string, isSaturday: boolean, isMWF: bo
     }
 
     if (isMWF) {
-      // Turno Noche L-M-V
+      // Turno Noche L-M-V: Solo se consideran registros a partir de las 17:00 (5:00 PM) para clase de 18:00
       const { entreSemana } = config;
-      const minEntrada = timeStringToDecimal(entreSemana.horaInicioEntrada) || 14.0;
-      const finEntrada = timeStringToDecimal(entreSemana.horaFinEntrada) || 20.3;
+      const minEntrada = timeStringToDecimal(entreSemana.horaInicioEntrada) || 17.0;
+      const finEntrada = timeStringToDecimal(entreSemana.horaFinEntrada) || 20.5;
 
-      if (timeNum < minEntrada) return -1;
+      if (timeNum < minEntrada) return -1; // Registros antes de las 17:00 se ignoran totalmente
       if (timeNum < finEntrada) return 0; // Entrada Noche
       return 1; // Salida Noche
     }
@@ -2149,8 +2149,12 @@ export default function DashboardPage() {
   });
   const uniqueLogs = Array.from(uniqueDocenteHistoryMap.values());
 
-  // Último Marcado
-  const latestLog = logs[0] || null;
+  // Último Marcado válido del turno actual
+  const validShiftLogs = todayLogs.filter((l) => {
+    const slotIdx = getSlotIndexForLog(l.timestamp, isSaturday, isMWF, horariosConfig);
+    return slotIdx >= 0;
+  });
+  const latestLog = validShiftLogs[0] || null;
   const latestDocente = latestLog
     ? docentes.find((d) => matchDNI(d.employee_id, latestLog.employee_id))
     : null;
@@ -2170,22 +2174,31 @@ export default function DashboardPage() {
   const filteredAulas = docentes
     .filter((d) => {
       let matchTipo = true;
-      const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
+      const hasValidLogToday = todayLogs.some((l) => {
+        if (!matchDNI(l.employee_id, d.employee_id)) return false;
+        const slotIdx = getSlotIndexForLog(l.timestamp, isSaturday, isMWF, horariosConfig);
+        return slotIdx >= 0;
+      });
 
       if (!isAdminMode) {
-        // En Modo Alumnos / TV: mostrar ÚNICAMENTE los docentes programados para el turno de hoy o quienes hayan marcado hoy
+        // En Modo Alumnos / TV: mostrar ÚNICAMENTE los docentes programados para el turno de hoy
         const isBoth =
           d.tipo_horario === "Ambos Horarios" ||
           d.tipo_horario === "Todos los Horarios" ||
           d.tipo_horario === "Ambos";
-        if (hasLogToday) matchTipo = true;
-        else if (isWeekend) matchTipo = d.tipo_horario === "Fin de Semana" || isBoth;
-        else if (isMWF) matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
-        else matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
+
+        if (isSaturday) {
+          matchTipo = d.tipo_horario === "Fin de Semana" || isBoth;
+        } else if (isMWF) {
+          matchTipo = d.tipo_horario === "Entre Semana" || isBoth;
+        } else {
+          matchTipo = false;
+        }
       } else {
-        if (horarioFilter === "Entre Semana") matchTipo = d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios" || hasLogToday;
-        else if (horarioFilter === "Fin de Semana") matchTipo = d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios" || hasLogToday;
+        if (horarioFilter === "Entre Semana") matchTipo = d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios";
+        else if (horarioFilter === "Fin de Semana") matchTipo = d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios";
         else if (horarioFilter === "Ambos Horarios") matchTipo = d.tipo_horario === "Ambos Horarios";
+        else if (horarioFilter === "Con Marcaje Hoy") matchTipo = hasValidLogToday;
         else matchTipo = true;
       }
 

@@ -331,10 +331,11 @@ export async function GET(request: NextRequest) {
         let salT: string | null = null;
 
         if (isMWF) {
-          // Ventana de Entrada L-M-V: 15:00 a 20:24 (Perú)
+          // Ventana de Entrada L-M-V: a partir de las 17:00 (5:00 PM) hasta las 20:30 (Hora Oficial 18:00)
+          // Registros anteriores a las 17:00 (mañana / mediodía) NO son de la clase nocturna y se ignoran
           const entryLogs = docLogs.filter((l) => {
             const dec = getPeruHourDec(l.timestamp);
-            return dec >= 15.0 && dec < 20.4;
+            return dec >= 17.0 && dec < 20.5;
           });
           if (entryLogs.length > 0) {
             // Seleccionar la marcación más próxima a 18:00 (18.0)
@@ -345,10 +346,10 @@ export async function GET(request: NextRequest) {
             });
           }
 
-          // Ventana de Salida L-M-V: a partir de 20:25 (20.4 hrs en adelante, ej: 21:30, 21:42...)
+          // Ventana de Salida L-M-V: a partir de 20:30 (20.5 hrs en adelante, ej: 21:30, 21:42...)
           const exitLogs = docLogs.filter((l) => {
             const dec = getPeruHourDec(l.timestamp);
-            return dec >= 20.4;
+            return dec >= 20.5;
           });
           if (exitLogs.length > 0) {
             // Tomar el último marcaje de salida
