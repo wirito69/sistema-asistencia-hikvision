@@ -243,12 +243,10 @@ export async function GET(request: NextRequest) {
       const dayObj = new Date(y, m - 1, dayNum, 12, 0, 0);
       const dayOfWeek = dayObj.getDay();
       const isSaturday = dayOfWeek === 6;
-      const isSunday = dayOfWeek === 0;
-      const isWeekend = isSaturday || isSunday;
       const isMWF = dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5; // Lunes (1), Miércoles (3), Viernes (5)
 
-      // SI ES MARTES O JUEVES, NO HAY CLASES EN POSGRADO UNHEVAL
-      if (!isMWF && !isWeekend) {
+      // SI NO ES L-M-V NI SÁBADO, NO HAY CLASES EN POSGRADO UNHEVAL (Martes, Jueves y Domingos NO hay clases)
+      if (!isMWF && !isSaturday) {
         return;
       }
 
@@ -265,7 +263,7 @@ export async function GET(request: NextRequest) {
             docente.tipo_horario === "Todos los Horarios" ||
             docente.tipo_horario === "Ambos";
 
-          if (isWeekend) {
+          if (isSaturday) {
             return docente.tipo_horario === "Fin de Semana" || isBoth;
           }
           if (isMWF) {
@@ -296,6 +294,10 @@ export async function GET(request: NextRequest) {
         // ASIGNACIÓN EXACTA DE ENTRADA Y SALIDA:
         let firstLog: any = null;
         let lastLog: any = null;
+        let entM: string | null = null;
+        let salM: string | null = null;
+        let entT: string | null = null;
+        let salT: string | null = null;
 
         if (isMWF) {
           // Ventana de Entrada L-M-V: 15:00 a 20:24 (Perú)
@@ -322,25 +324,56 @@ export async function GET(request: NextRequest) {
             lastLog = exitLogs[exitLogs.length - 1];
           }
         } else if (isSaturday) {
-          // Sábado
-          const morningLogs = docLogs.filter((l) => {
+          // Sábado (4 Marcaciones: Mañana 07:00 a 14:00 | Tarde 15:00 a 18:30)
+          // 1. Mañana Entrada (06:00 a 11:30 - Oficial 07:00)
+          const mEntLogs = docLogs.filter((l) => {
             const dec = getPeruHourDec(l.timestamp);
             return dec >= 6.0 && dec < 11.5;
           });
-          if (morningLogs.length > 0) {
-            firstLog = morningLogs.reduce((prev, curr) => {
-              const prevDec = getPeruHourDec(prev.timestamp);
-              const currDec = getPeruHourDec(curr.timestamp);
-              return Math.abs(currDec - 7.0) < Math.abs(prevDec - 7.0) ? curr : prev;
-            });
+          // 2. Mañana Salida (11:30 a 14:45 - Oficial 14:00)
+          const mSalLogs = docLogs.filter((l) => {
+            const dec = getPeruHourDec(l.timestamp);
+            return dec >= 11.5 && dec < 14.75;
+          });
+          // 3. Tarde Entrada (14:45 a 17:00 - Oficial 15:00)
+          const tEntLogs = docLogs.filter((l) => {
+            const dec = getPeruHourDec(l.timestamp);
+            return dec >= 14.75 && dec < 17.0;
+          });
+          // 4. Tarde Salida (17:00 en adelante - Oficial 18:30)
+          const tSalLogs = docLogs.filter((l) => {
+            const dec = getPeruHourDec(l.timestamp);
+            return dec >= 17.0;
+          });
+
+          if (mEntLogs.length > 0) {
+            const best = mEntLogs.reduce((prev, curr) =>
+              Math.abs(getPeruHourDec(curr.timestamp) - 7.0) < Math.abs(getPeruHourDec(prev.timestamp) - 7.0) ? curr : prev
+            );
+            entM = getPeruTimeStr(best.timestamp);
+            firstLog = best;
+          }
+          if (mSalLogs.length > 0) {
+            const best = mSalLogs.reduce((prev, curr) =>
+              Math.abs(getPeruHourDec(curr.timestamp) - 14.0) < Math.abs(getPeruHourDec(prev.timestamp) - 14.0) ? curr : prev
+            );
+            salM = getPeruTimeStr(best.timestamp);
+          }
+          if (tEntLogs.length > 0) {
+            const best = tEntLogs.reduce((prev, curr) =>
+              Math.abs(getPeruHourDec(curr.timestamp) - 15.0) < Math.abs(getPeruHourDec(prev.timestamp) - 15.0) ? curr : prev
+            );
+            entT = getPeruTimeStr(best.timestamp);
+            if (!firstLog) firstLog = best;
+          }
+          if (tSalLogs.length > 0) {
+            const best = tSalLogs[tSalLogs.length - 1];
+            salT = getPeruTimeStr(best.timestamp);
+            lastLog = best;
           }
 
-          const exitLogs = docLogs.filter((l) => {
-            const dec = getPeruHourDec(l.timestamp);
-            return (dec >= 11.5 && dec < 14.5) || dec >= 17.0;
-          });
-          if (exitLogs.length > 0) {
-            lastLog = exitLogs[exitLogs.length - 1];
+          if (!lastLog && salM) {
+            lastLog = mSalLogs[mSalLogs.length - 1];
           }
         }
 
@@ -362,15 +395,22 @@ export async function GET(request: NextRequest) {
           let isEntryLate = false;
 
           if (isSaturday) {
-            isEntryLate = timeNum > 7.5;
+            // Tolerancia de mañana hasta 07:30 (7.5), o de tarde hasta 15:30 (15.5)
+            if (timeNum < 12.0) {
+              isEntryLate = timeNum > 7.5;
+              minsTardanza = isEntryLate ? Math.round((timeNum - 7.0) * 60) : 0;
+            } else {
+              isEntryLate = timeNum > 15.5;
+              minsTardanza = isEntryLate ? Math.round((timeNum - 15.0) * 60) : 0;
+            }
           } else {
             isEntryLate = timeNum > 18.5; // Pasado 18:30 es tardanza
+            minsTardanza = isEntryLate ? Math.round((timeNum - 18.0) * 60) : 0;
           }
 
           if (isEntryLate) {
             estado = "TARDANZA";
             badgeEstado = lastLog ? "🔵 Salió (Tardanza)" : "🟡 En Aula (+30m)";
-            minsTardanza = Math.round((timeNum - (isSaturday ? 7.0 : 18.0)) * 60);
             if (consRecord) {
               consRecord.total_tardanzas++;
               consRecord.minutos_tardanza_acumulados += minsTardanza;
@@ -402,8 +442,12 @@ export async function GET(request: NextRequest) {
           curso: docente.curso,
           tipo_horario: docente.tipo_horario,
           modalidad: docente.modalidad || "Presencial",
-          hora_entrada: firstLog ? getPeruTimeStr(firstLog.timestamp) : null,
-          hora_salida: lastLog ? getPeruTimeStr(lastLog.timestamp) : null,
+          hora_entrada: firstLog ? getPeruTimeStr(firstLog.timestamp) : (entM || entT || null),
+          hora_salida: lastLog ? getPeruTimeStr(lastLog.timestamp) : (salT || salM || null),
+          hora_entrada_m: entM,
+          hora_salida_m: salM,
+          hora_entrada_t: entT,
+          hora_salida_t: salT,
           total_marcajes: punchCount,
           estado,
           badge_estado: badgeEstado,

@@ -528,19 +528,25 @@ export default function DashboardPage() {
       };
 
       // 1. Hoja Detalle Día a Día (Pestaña Principal)
-      const wsDetalleData = (currentData.detalle || []).map((d: any) => ({
-        FECHA: d.fecha,
-        DIA: d.dia_semana,
-        DNI: d.dni,
-        DOCENTE: d.docente,
-        AULA: d.aula,
-        CURSO: d.curso,
-        "HORA ENTRADA": formatTimeHHMM(d.hora_entrada),
-        "HORA SALIDA": formatTimeHHMM(d.hora_salida),
-        ESTADO: d.estado,
-        "MIN. TARDANZA": d.minutos_tardanza,
-        "HORAS DICTADAS": d.horas_dictadas,
-      }));
+      const wsDetalleData = (currentData.detalle || []).map((d: any) => {
+        const isSat = d.dia_semana === "SÁBADO" || d.dia_semana === "SABADO";
+        return {
+          FECHA: d.fecha,
+          DIA: d.dia_semana,
+          DNI: d.dni,
+          DOCENTE: d.docente,
+          AULA: d.aula,
+          ASIGNATURA: d.curso,
+          TURNO: d.tipo_horario,
+          "1. ENTRADA MAÑANA (07:00) / NOCHE (18:00)": isSat ? formatTimeHHMM(d.hora_entrada_m || d.hora_entrada) : formatTimeHHMM(d.hora_entrada),
+          "2. SALIDA MAÑANA (14:00)": isSat ? formatTimeHHMM(d.hora_salida_m) : "--:--",
+          "3. ENTRADA TARDE (15:00)": isSat ? formatTimeHHMM(d.hora_entrada_t) : "--:--",
+          "4. SALIDA TARDE (18:30) / NOCHE (21:30)": isSat ? formatTimeHHMM(d.hora_salida_t || d.hora_salida) : formatTimeHHMM(d.hora_salida),
+          ESTADO: d.estado,
+          "MIN. TARDANZA": d.minutos_tardanza,
+          "HORAS DICTADAS": d.horas_dictadas,
+        };
+      });
 
       const wb = XLSX.utils.book_new();
       const wsDetalle = XLSX.utils.json_to_sheet(wsDetalleData);
@@ -6231,8 +6237,8 @@ export default function DashboardPage() {
                       <tr>
                         <th className="py-2.5 px-3">Fecha</th>
                         <th className="py-2.5 px-3">Docente / Aula</th>
-                        <th className="py-2.5 px-3 text-center min-w-[160px]">1. Entrada Noche (18:00 - Tol: 18:30)</th>
-                        <th className="py-2.5 px-3 text-center min-w-[160px]">2. Salida Noche (21:30)</th>
+                        <th className="py-2.5 px-3 text-center min-w-[160px]">1. Entrada (07:00 Sáb / 18:00 L-M-V)</th>
+                        <th className="py-2.5 px-3 text-center min-w-[160px]">2. Salida (14:00 - 18:30 Sáb / 21:30 L-M-V)</th>
                         <th className="py-2.5 px-3 text-center">Estado del Docente</th>
                         <th className="py-2.5 px-3 text-center">Tardanza</th>
                         <th className="py-2.5 px-3 text-center">Foto</th>
