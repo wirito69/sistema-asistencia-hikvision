@@ -266,9 +266,14 @@ export async function GET(request: NextRequest) {
       const isSaturday = dayOfWeek === 6;
       const isMWF = dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5; // Lunes (1), Miércoles (3), Viernes (5)
 
-      // SI NO ES L-M-V NI SÁBADO, NO HAY CLASES EN POSGRADO UNHEVAL (Martes, Jueves y Domingos NO hay clases)
-      if (!isMWF && !isSaturday) {
-        return;
+      // FILTRADO ESTRICTO SEGÚN EL TIPO DE HORARIO SELECCIONADO:
+      if (tipoHorario === "sd" || tipoHorario === "fin_de_semana" || tipoHorario === "fin de semana") {
+        if (!isSaturday) return; // Solo procesar días Sábado
+      } else if (tipoHorario === "lmv" || tipoHorario === "entre_semana" || tipoHorario === "entre semana") {
+        if (!isMWF) return; // Solo procesar Lunes, Miércoles y Viernes
+      } else {
+        // Modo "Todos": Solo procesar Sábados y L-M-V (domingos, martes y jueves se ignoran)
+        if (!isMWF && !isSaturday) return;
       }
 
       const diaNombre = dayObj.toLocaleDateString("es-PE", { weekday: "long" });

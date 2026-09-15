@@ -536,9 +536,47 @@ export default function DashboardPage() {
         return clean;
       };
 
-      // 1. Hoja Detalle Día a Día (Pestaña Principal)
+      // 1. Hoja Detalle Día a Día (Pestaña Principal adaptada al turno seleccionado)
       const wsDetalleData = (currentData.detalle || []).map((d: any) => {
         const isSat = d.dia_semana === "SÁBADO" || d.dia_semana === "SABADO";
+
+        if (reporteTipoHorario === "sd") {
+          return {
+            FECHA: d.fecha,
+            DIA: d.dia_semana,
+            DNI: d.dni,
+            DOCENTE: d.docente,
+            AULA: d.aula,
+            ASIGNATURA: d.curso,
+            TURNO: "Fin de Semana (Sábados)",
+            "1. ENTRADA MAÑANA (07:00)": formatTimeHHMM(d.hora_entrada_m || d.hora_entrada),
+            "2. SALIDA MAÑANA (14:00)": formatTimeHHMM(d.hora_salida_m),
+            "3. ENTRADA TARDE (15:00)": formatTimeHHMM(d.hora_entrada_t),
+            "4. SALIDA TARDE (18:30)": formatTimeHHMM(d.hora_salida_t || d.hora_salida),
+            ESTADO: d.estado,
+            "MIN. TARDANZA": d.minutos_tardanza,
+            "HORAS DICTADAS": d.horas_dictadas,
+          };
+        }
+
+        if (reporteTipoHorario === "lmv") {
+          return {
+            FECHA: d.fecha,
+            DIA: d.dia_semana,
+            DNI: d.dni,
+            DOCENTE: d.docente,
+            AULA: d.aula,
+            ASIGNATURA: d.curso,
+            TURNO: "Entre Semana (L-M-V)",
+            "1. ENTRADA NOCHE (18:00)": formatTimeHHMM(d.hora_entrada),
+            "2. SALIDA NOCHE (21:30)": formatTimeHHMM(d.hora_salida),
+            ESTADO: d.estado,
+            "MIN. TARDANZA": d.minutos_tardanza,
+            "HORAS DICTADAS": d.horas_dictadas,
+          };
+        }
+
+        // Modo Todos los turnos
         return {
           FECHA: d.fecha,
           DIA: d.dia_semana,
@@ -547,10 +585,10 @@ export default function DashboardPage() {
           AULA: d.aula,
           ASIGNATURA: d.curso,
           TURNO: d.tipo_horario,
-          "1. ENTRADA MAÑANA (07:00) / NOCHE (18:00)": isSat ? formatTimeHHMM(d.hora_entrada_m || d.hora_entrada) : formatTimeHHMM(d.hora_entrada),
-          "2. SALIDA MAÑANA (14:00)": isSat ? formatTimeHHMM(d.hora_salida_m) : "--:--",
-          "3. ENTRADA TARDE (15:00)": isSat ? formatTimeHHMM(d.hora_entrada_t) : "--:--",
-          "4. SALIDA TARDE (18:30) / NOCHE (21:30)": isSat ? formatTimeHHMM(d.hora_salida_t || d.hora_salida) : formatTimeHHMM(d.hora_salida),
+          "1. ENTRADA MAÑANA / NOCHE": isSat ? formatTimeHHMM(d.hora_entrada_m || d.hora_entrada) : formatTimeHHMM(d.hora_entrada),
+          "2. SALIDA MAÑANA": isSat ? formatTimeHHMM(d.hora_salida_m) : "--:--",
+          "3. ENTRADA TARDE": isSat ? formatTimeHHMM(d.hora_entrada_t) : "--:--",
+          "4. SALIDA TARDE / NOCHE": isSat ? formatTimeHHMM(d.hora_salida_t || d.hora_salida) : formatTimeHHMM(d.hora_salida),
           ESTADO: d.estado,
           "MIN. TARDANZA": d.minutos_tardanza,
           "HORAS DICTADAS": d.horas_dictadas,
@@ -6566,8 +6604,24 @@ export default function DashboardPage() {
                       <tr>
                         <th className="py-2.5 px-3">Fecha</th>
                         <th className="py-2.5 px-3">Docente / Aula</th>
-                        <th className="py-2.5 px-3 text-center min-w-[160px]">1. Entrada (07:00 Sáb / 18:00 L-M-V)</th>
-                        <th className="py-2.5 px-3 text-center min-w-[160px]">2. Salida (14:00 - 18:30 Sáb / 21:30 L-M-V)</th>
+                        {reporteTipoHorario === "sd" ? (
+                          <>
+                            <th className="py-2.5 px-2 text-center min-w-[130px]">1. Entrada M. (07:00)</th>
+                            <th className="py-2.5 px-2 text-center min-w-[130px]">2. Salida M. (14:00)</th>
+                            <th className="py-2.5 px-2 text-center min-w-[130px]">3. Entrada T. (15:00)</th>
+                            <th className="py-2.5 px-2 text-center min-w-[130px]">4. Salida T. (18:30)</th>
+                          </>
+                        ) : reporteTipoHorario === "lmv" ? (
+                          <>
+                            <th className="py-2.5 px-3 text-center min-w-[160px]">1. Entrada Noche (18:00)</th>
+                            <th className="py-2.5 px-3 text-center min-w-[160px]">2. Salida Noche (21:30)</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="py-2.5 px-3 text-center min-w-[160px]">1. Entrada (07:00 Sáb / 18:00 L-M-V)</th>
+                            <th className="py-2.5 px-3 text-center min-w-[160px]">2. Salida (14:00 - 18:30 Sáb / 21:30 L-M-V)</th>
+                          </>
+                        )}
                         <th className="py-2.5 px-3 text-center">Estado del Docente</th>
                         <th className="py-2.5 px-3 text-center">Tardanza</th>
                         <th className="py-2.5 px-3 text-center">Foto</th>
@@ -6576,14 +6630,14 @@ export default function DashboardPage() {
                     <tbody className="divide-y divide-slate-800/60 font-medium">
                       {(reporteData?.detalle || []).length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="text-center py-16 text-slate-500">
+                          <td colSpan={reporteTipoHorario === "sd" ? 9 : 7} className="text-center py-16 text-slate-500">
                             {isGeneratingReporte ? "Cargando registros..." : "No se encontraron registros para el rango de fechas seleccionado."}
                           </td>
                         </tr>
                       ) : (
                         (reporteData?.detalle || []).map((row: any, rIdx: number) => {
-                          const hasEntered = !!row.hora_entrada;
-                          const hasExited = !!row.hora_salida;
+                          const hasEntered = !!row.hora_entrada || !!row.hora_entrada_m || !!row.hora_entrada_t;
+                          const hasExited = !!row.hora_salida || !!row.hora_salida_m || !!row.hora_salida_t;
                           const isPuntual = row.estado === "PUNTUAL";
                           const isTardanza = row.estado === "TARDANZA";
                           const isVirtual = row.estado === "VIRTUAL";
@@ -6592,7 +6646,7 @@ export default function DashboardPage() {
                             <tr key={rIdx} className="hover:bg-slate-800/40 transition-all">
                               <td className="py-2.5 px-3 whitespace-nowrap">
                                 <span className="font-mono font-bold text-white text-xs">{row.fecha}</span>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase">{row.dia_semana}</p>
+                                <p className="text-[10px] text-purple-400 font-bold uppercase">{row.dia_semana}</p>
                               </td>
                               <td className="py-2.5 px-3">
                                 <div className="flex items-center gap-2">
@@ -6609,43 +6663,83 @@ export default function DashboardPage() {
                                 </div>
                               </td>
 
-                              {/* SLOT 1: ENTRADA (IDÉNTICO A CONTROL DE ASISTENCIA) */}
-                              <td className="py-2 px-3 text-center">
-                                <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                  hasEntered
-                                    ? isPuntual
-                                      ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                                      : "bg-amber-950/60 border-amber-500/50 text-amber-300"
-                                    : isVirtual
-                                    ? "bg-indigo-950/40 border-indigo-500/40 text-indigo-300"
-                                    : "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                                }`}>
-                                  <span className="font-mono text-xs font-black tracking-tight">
-                                    {row.hora_entrada || "--:--:--"}
-                                  </span>
-                                  <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
-                                    {hasEntered ? (isPuntual ? "Puntual ✅" : `Tardanza (+30m) ⚠️`) : (isVirtual ? "Virtual Teams" : "Sin Registro 🔴")}
-                                  </span>
-                                </div>
-                              </td>
+                              {/* RENDERIZADO DE SLOTS ESPECÍFICO SEGÚN EL FILTRO */}
+                              {reporteTipoHorario === "sd" ? (
+                                <>
+                                  {/* Slot 1: Entrada Mañana */}
+                                  <td className="py-2 px-2 text-center">
+                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
+                                      row.hora_entrada_m ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"
+                                    }`}>
+                                      {row.hora_entrada_m || "--:--:--"}
+                                    </span>
+                                  </td>
+                                  {/* Slot 2: Salida Mañana */}
+                                  <td className="py-2 px-2 text-center">
+                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
+                                      row.hora_salida_m ? "bg-blue-950/60 border-blue-500/50 text-blue-300" : "bg-slate-900 border-slate-800 text-slate-500"
+                                    }`}>
+                                      {row.hora_salida_m || "--:--:--"}
+                                    </span>
+                                  </td>
+                                  {/* Slot 3: Entrada Tarde */}
+                                  <td className="py-2 px-2 text-center">
+                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
+                                      row.hora_entrada_t ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"
+                                    }`}>
+                                      {row.hora_entrada_t || "--:--:--"}
+                                    </span>
+                                  </td>
+                                  {/* Slot 4: Salida Tarde */}
+                                  <td className="py-2 px-2 text-center">
+                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
+                                      row.hora_salida_t ? "bg-blue-950/60 border-blue-500/50 text-blue-300" : "bg-slate-900 border-slate-800 text-slate-500"
+                                    }`}>
+                                      {row.hora_salida_t || "--:--:--"}
+                                    </span>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  {/* SLOT 1: ENTRADA */}
+                                  <td className="py-2 px-3 text-center">
+                                    <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                      hasEntered
+                                        ? isPuntual
+                                          ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
+                                          : "bg-amber-950/60 border-amber-500/50 text-amber-300"
+                                        : isVirtual
+                                        ? "bg-indigo-950/40 border-indigo-500/40 text-indigo-300"
+                                        : "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                                    }`}>
+                                      <span className="font-mono text-xs font-black tracking-tight">
+                                        {row.hora_entrada || row.hora_entrada_m || "--:--:--"}
+                                      </span>
+                                      <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
+                                        {hasEntered ? (isPuntual ? "Puntual ✅" : `Tardanza (+30m) ⚠️`) : (isVirtual ? "Virtual Teams" : "Sin Registro 🔴")}
+                                      </span>
+                                    </div>
+                                  </td>
 
-                              {/* SLOT 2: SALIDA (IDÉNTICO A CONTROL DE ASISTENCIA) */}
-                              <td className="py-2 px-3 text-center">
-                                <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                  hasExited
-                                    ? "bg-blue-950/60 border-blue-500/50 text-blue-300"
-                                    : hasEntered
-                                    ? "bg-slate-900/90 border-slate-700/80 text-amber-300"
-                                    : "bg-slate-900/60 border-slate-800 text-slate-500"
-                                }`}>
-                                  <span className="font-mono text-xs font-black tracking-tight">
-                                    {row.hora_salida || "--:--:--"}
-                                  </span>
-                                  <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
-                                    {hasExited ? "Salida ✅" : hasEntered ? "En Aula (Esperando Salida)" : "Pendiente"}
-                                  </span>
-                                </div>
-                              </td>
+                                  {/* SLOT 2: SALIDA */}
+                                  <td className="py-2 px-3 text-center">
+                                    <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                      hasExited
+                                        ? "bg-blue-950/60 border-blue-500/50 text-blue-300"
+                                        : hasEntered
+                                        ? "bg-slate-900/90 border-slate-700/80 text-amber-300"
+                                        : "bg-slate-900/60 border-slate-800 text-slate-500"
+                                    }`}>
+                                      <span className="font-mono text-xs font-black tracking-tight">
+                                        {row.hora_salida || row.hora_salida_t || row.hora_salida_m || "--:--:--"}
+                                      </span>
+                                      <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
+                                        {hasExited ? "Salida ✅" : hasEntered ? "En Aula (Esperando Salida)" : "Pendiente"}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </>
+                              )}
 
                               {/* ESTADO INSTITUCIONAL */}
                               <td className="py-2.5 px-3 text-center">
