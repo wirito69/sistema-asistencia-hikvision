@@ -1,4 +1,4 @@
-﻿const crypto = require('crypto');
+const crypto = require('crypto');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -290,11 +290,25 @@ async function syncCycle() {
       const docLogs = existingByDni.get(dni) || [];
 
       // Detección de duplicado inteligente:
-      // Si ya existe una marcación con el mismo tipo de evento hoy, o a menos de 15 minutos de diferencia
+      // Solo es duplicado si ocurrió a menos de 15 minutos (rebote del lector)
+      // O si ambos pertenecen al mismo turno (ej. ambos en la noche >= 17:00 o ambos en la mañana)
+      const evHour = eventDate.toLocaleTimeString('en-US', { timeZone: 'America/Lima', hour12: false });
+      const evDec = parseInt(evHour.split(':')[0], 10) + parseInt(evHour.split(':')[1], 10) / 60;
+
       const existingMatch = docLogs.find(l => {
         const lTime = new Date(l.timestamp).getTime();
         const diffMin = Math.abs(eventTimestamp - lTime) / 60000;
-        return l.tipo_evento === tipo || diffMin < 15;
+        if (diffMin < 15) return true; // Doble lectura inmediata en el sensor
+        
+        const lHour = new Date(l.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Lima', hour12: false });
+        const lDec = parseInt(lHour.split(':')[0], 10) + parseInt(lHour.split(':')[1], 10) / 60;
+        
+        // Si ambos son de la franja de clase noche (17:00 a 20:30)
+        if (evDec >= 17.0 && evDec < 20.5 && lDec >= 17.0 && lDec < 20.5) return true;
+        // Si ambos son de la franja de salida noche (>= 20:30)
+        if (evDec >= 20.5 && lDec >= 20.5) return true;
+
+        return false;
       });
 
       let pictureUrl = existingMatch?.picture_url || null;

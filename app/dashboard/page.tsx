@@ -1965,10 +1965,6 @@ export default function DashboardPage() {
     const isVirtual = d.modalidad?.toLowerCase().includes("virtual") || d.aula?.toLowerCase().includes("virtual");
     if (isVirtual) return false;
 
-    // Si el docente ya registró marcación hoy en el terminal, incluirlo siempre para mostrar su tarjeta y estado verde
-    const hasLogToday = todayLogs.some((l) => matchDNI(l.employee_id, d.employee_id));
-    if (hasLogToday) return true;
-
     // Docentes que dictan en ambos turnos (S-D y L-M-V)
     const isBoth =
       d.tipo_horario === "Ambos Horarios" ||
@@ -1976,9 +1972,9 @@ export default function DashboardPage() {
       d.tipo_horario === "Ambos";
     if (isBoth) return true;
 
-    if (isWeekend) return d.tipo_horario === "Fin de Semana";
+    if (isSaturday) return d.tipo_horario === "Fin de Semana";
     if (isMWF) return d.tipo_horario === "Entre Semana";
-    return d.tipo_horario === "Entre Semana";
+    return false;
   });
 
   const getHorarioInfo = () => {
@@ -2136,7 +2132,7 @@ export default function DashboardPage() {
   const presentDocentes = docentesWithAttendance.filter((d) => d.isPresent);
   const missingDocentes = docentesWithAttendance.filter((d) => !d.isPresent).sort(sortAulasNatural);
 
-  const totalDocentes = Math.max(activeDocentesForToday.length, presentIds.size);
+  const totalDocentes = activeDocentesForToday.length;
   const percentAttendance = totalDocentes > 0 ? Math.round((presentDocentes.length / totalDocentes) * 100) : 0;
 
   // Historial Único
