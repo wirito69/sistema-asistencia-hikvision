@@ -184,13 +184,23 @@ export async function GET(request: NextRequest) {
     let filteredDocentes = docentesList;
     if (tipoHorario) {
       if (tipoHorario === "sd" || tipoHorario === "fin_de_semana" || tipoHorario === "fin de semana") {
-        filteredDocentes = filteredDocentes.filter(
-          (d) => d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios"
-        );
+        filteredDocentes = filteredDocentes.filter((d) => {
+          if (d.tipo_horario === "Fin de Semana" || d.tipo_horario === "Ambos Horarios") return true;
+          return historialList.some(
+            (h) =>
+              (matchDNI(h.docente_dni, d.employee_id) || matchDNI((h as any).employee_id, d.employee_id)) &&
+              (h.tipo_horario === "Fin de Semana" || (h as any).target_schedule === "Fin de Semana" || h.tipo_horario === "Ambos Horarios")
+          );
+        });
       } else if (tipoHorario === "lmv" || tipoHorario === "entre_semana" || tipoHorario === "entre semana") {
-        filteredDocentes = filteredDocentes.filter(
-          (d) => d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios"
-        );
+        filteredDocentes = filteredDocentes.filter((d) => {
+          if (d.tipo_horario === "Entre Semana" || d.tipo_horario === "Ambos Horarios") return true;
+          return historialList.some(
+            (h) =>
+              (matchDNI(h.docente_dni, d.employee_id) || matchDNI((h as any).employee_id, d.employee_id)) &&
+              (h.tipo_horario === "Entre Semana" || (h as any).target_schedule === "Entre Semana" || h.tipo_horario === "Ambos Horarios")
+          );
+        });
       } else if (tipoHorario === "ambos") {
         filteredDocentes = filteredDocentes.filter((d) => d.tipo_horario === "Ambos Horarios");
       }
