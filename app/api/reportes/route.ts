@@ -241,6 +241,12 @@ export async function GET(request: NextRequest) {
       hora_salida_m?: string | null;
       hora_entrada_t?: string | null;
       hora_salida_t?: string | null;
+      foto_entrada_m?: string | null;
+      foto_salida_m?: string | null;
+      foto_entrada_t?: string | null;
+      foto_salida_t?: string | null;
+      foto_entrada?: string | null;
+      foto_salida?: string | null;
       total_marcajes: number;
       estado: string;
       badge_estado: string;
@@ -344,6 +350,10 @@ export async function GET(request: NextRequest) {
         let salM: string | null = null;
         let entT: string | null = null;
         let salT: string | null = null;
+        let logEntM: any = null;
+        let logSalM: any = null;
+        let logEntT: any = null;
+        let logSalT: any = null;
 
         if (isMWF) {
           // Ventana de Entrada L-M-V: a partir de las 17:00 (5:00 PM) hasta las 20:30 (Hora Oficial 18:00)
@@ -398,6 +408,7 @@ export async function GET(request: NextRequest) {
               Math.abs(getPeruHourDec(curr.timestamp) - 7.0) < Math.abs(getPeruHourDec(prev.timestamp) - 7.0) ? curr : prev
             );
             entM = getPeruTimeStr(best.timestamp);
+            logEntM = best;
             firstLog = best;
           }
           if (mSalLogs.length > 0) {
@@ -405,17 +416,20 @@ export async function GET(request: NextRequest) {
               Math.abs(getPeruHourDec(curr.timestamp) - 14.0) < Math.abs(getPeruHourDec(prev.timestamp) - 14.0) ? curr : prev
             );
             salM = getPeruTimeStr(best.timestamp);
+            logSalM = best;
           }
           if (tEntLogs.length > 0) {
             const best = tEntLogs.reduce((prev, curr) =>
               Math.abs(getPeruHourDec(curr.timestamp) - 15.0) < Math.abs(getPeruHourDec(prev.timestamp) - 15.0) ? curr : prev
             );
             entT = getPeruTimeStr(best.timestamp);
+            logEntT = best;
             if (!firstLog) firstLog = best;
           }
           if (tSalLogs.length > 0) {
             const best = tSalLogs[tSalLogs.length - 1];
             salT = getPeruTimeStr(best.timestamp);
+            logSalT = best;
             lastLog = best;
           }
 
@@ -495,12 +509,18 @@ export async function GET(request: NextRequest) {
           hora_salida_m: salM,
           hora_entrada_t: entT,
           hora_salida_t: salT,
+          foto_entrada_m: logEntM?.picture_url || null,
+          foto_salida_m: logSalM?.picture_url || null,
+          foto_entrada_t: logEntT?.picture_url || null,
+          foto_salida_t: logSalT?.picture_url || null,
+          foto_entrada: firstLog?.picture_url || logEntM?.picture_url || logEntT?.picture_url || null,
+          foto_salida: lastLog?.picture_url || logSalT?.picture_url || logSalM?.picture_url || null,
           total_marcajes: punchCount,
           estado,
           badge_estado: badgeEstado,
           minutos_tardanza: minsTardanza,
           horas_dictadas: horasDictadas,
-          foto_captura: docLogs.find((l) => l.picture_url)?.picture_url || null,
+          foto_captura: firstLog?.picture_url || docLogs.find((l) => l.picture_url)?.picture_url || null,
         });
       });
     });

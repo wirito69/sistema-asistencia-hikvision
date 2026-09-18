@@ -6666,18 +6666,38 @@ export default function DashboardPage() {
                                 <>
                                   {/* SLOT 1: ENTRADA NOCHE */}
                                   <td className="py-2 px-3 text-center">
-                                    <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                      hasEntered
-                                        ? isPuntual
-                                          ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300"
-                                          : "bg-amber-950/60 border-amber-500/50 text-amber-300"
-                                        : isVirtual
-                                        ? "bg-indigo-950/40 border-indigo-500/40 text-indigo-300"
-                                        : "bg-rose-950/50 border-rose-500/40 text-rose-300"
-                                    }`}>
-                                      <span className="font-mono text-xs font-black tracking-tight">
-                                        {row.hora_entrada || "--:--:--"}
-                                      </span>
+                                    <div
+                                      onClick={() => {
+                                        const url = row.foto_entrada || row.foto_captura;
+                                        if (url) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${row.hora_entrada || "--:--:--"} (${row.fecha})`,
+                                            tipo: "ENTRADA NOCHE",
+                                          });
+                                        }
+                                      }}
+                                      className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                        hasEntered
+                                          ? isPuntual
+                                            ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 hover:scale-105 hover:ring-2 hover:ring-emerald-400/40 cursor-pointer"
+                                            : "bg-amber-950/60 border-amber-500/50 text-amber-300 hover:scale-105 hover:ring-2 hover:ring-amber-400/40 cursor-pointer"
+                                          : isVirtual
+                                          ? "bg-indigo-950/40 border-indigo-500/40 text-indigo-300"
+                                          : "bg-rose-950/50 border-rose-500/40 text-rose-300"
+                                      }`}
+                                      title={hasEntered ? "📸 Clic para ver foto capturada en el biométrico" : ""}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-mono text-xs font-black tracking-tight">
+                                          {row.hora_entrada || "--:--:--"}
+                                        </span>
+                                        {hasEntered && (row.foto_entrada || row.foto_captura) && (
+                                          <Camera className="w-3 h-3 text-emerald-400/80" />
+                                        )}
+                                      </div>
                                       <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
                                         {hasEntered ? (isPuntual ? "Puntual ✅" : `Tardanza (+30m) ⚠️`) : (isVirtual ? "Virtual Teams" : "Sin Registro 🔴")}
                                       </span>
@@ -6686,16 +6706,36 @@ export default function DashboardPage() {
 
                                   {/* SLOT 2: SALIDA NOCHE */}
                                   <td className="py-2 px-3 text-center">
-                                    <div className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                                      hasExited
-                                        ? "bg-blue-950/60 border-blue-500/50 text-blue-300"
-                                        : hasEntered
-                                        ? "bg-slate-900/90 border-slate-700/80 text-amber-300"
-                                        : "bg-slate-900/60 border-slate-800 text-slate-500"
-                                    }`}>
-                                      <span className="font-mono text-xs font-black tracking-tight">
-                                        {row.hora_salida || "--:--:--"}
-                                      </span>
+                                    <div
+                                      onClick={() => {
+                                        const url = row.foto_salida || row.foto_captura;
+                                        if (url && hasExited) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${row.hora_salida || "--:--:--"} (${row.fecha})`,
+                                            tipo: "SALIDA NOCHE",
+                                          });
+                                        }
+                                      }}
+                                      className={`py-1.5 px-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                        hasExited
+                                          ? "bg-blue-950/60 border-blue-500/50 text-blue-300 hover:scale-105 hover:ring-2 hover:ring-blue-400/40 cursor-pointer"
+                                          : hasEntered
+                                          ? "bg-slate-900/90 border-slate-700/80 text-amber-300"
+                                          : "bg-slate-900/60 border-slate-800 text-slate-500"
+                                      }`}
+                                      title={hasExited ? "📸 Clic para ver foto de salida" : ""}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-mono text-xs font-black tracking-tight">
+                                          {row.hora_salida || "--:--:--"}
+                                        </span>
+                                        {hasExited && (row.foto_salida || row.foto_captura) && (
+                                          <Camera className="w-3 h-3 text-blue-400/80" />
+                                        )}
+                                      </div>
                                       <span className="text-[9px] uppercase font-bold tracking-wider mt-0.5">
                                         {hasExited ? "Salida ✅" : hasEntered ? "En Aula (Esperando Salida)" : "Pendiente"}
                                       </span>
@@ -6706,43 +6746,124 @@ export default function DashboardPage() {
                                 <>
                                   {/* Slot 1: Entrada Mañana / Noche */}
                                   <td className="py-2 px-2 text-center">
-                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
-                                      isSat
-                                        ? (row.hora_entrada_m ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                        : (row.hora_entrada ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                    }`}>
-                                      {isSat ? (row.hora_entrada_m || "--:--:--") : (row.hora_entrada || "--:--:--")}
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = isSat ? (row.foto_entrada_m || row.foto_entrada || row.foto_captura) : (row.foto_entrada || row.foto_captura);
+                                        const timeStr = isSat ? row.hora_entrada_m : row.hora_entrada;
+                                        if (url && timeStr) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${timeStr} (${row.fecha})`,
+                                            tipo: isSat ? "ENTRADA MAÑANA" : "ENTRADA NOCHE",
+                                          });
+                                        }
+                                      }}
+                                      className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1 mx-auto transition-all ${
+                                        isSat
+                                          ? (row.hora_entrada_m ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 hover:scale-105 hover:ring-2 hover:ring-emerald-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                          : (row.hora_entrada ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 hover:scale-105 hover:ring-2 hover:ring-emerald-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                      }`}
+                                      title={((isSat ? row.hora_entrada_m : row.hora_entrada) && (row.foto_entrada_m || row.foto_entrada || row.foto_captura)) ? "📸 Clic para ver foto capturada de entrada" : ""}
+                                    >
+                                      <span>{isSat ? (row.hora_entrada_m || "--:--:--") : (row.hora_entrada || "--:--:--")}</span>
+                                      {((isSat ? row.hora_entrada_m : row.hora_entrada) && (row.foto_entrada_m || row.foto_entrada || row.foto_captura)) && (
+                                        <Camera className="w-3 h-3 text-emerald-400/80" />
+                                      )}
+                                    </button>
                                   </td>
+
                                   {/* Slot 2: Salida Mañana */}
                                   <td className="py-2 px-2 text-center">
-                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
-                                      isSat
-                                        ? (row.hora_salida_m ? "bg-blue-950/60 border-blue-500/50 text-blue-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                        : "bg-slate-900/40 border-slate-800/40 text-slate-600 text-[10px]"
-                                    }`}>
-                                      {isSat ? (row.hora_salida_m || "--:--:--") : "--"}
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = row.foto_salida_m || row.foto_captura;
+                                        if (url && row.hora_salida_m && isSat) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${row.hora_salida_m} (${row.fecha})`,
+                                            tipo: "SALIDA MAÑANA",
+                                          });
+                                        }
+                                      }}
+                                      className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1 mx-auto transition-all ${
+                                        isSat
+                                          ? (row.hora_salida_m ? "bg-blue-950/60 border-blue-500/50 text-blue-300 hover:scale-105 hover:ring-2 hover:ring-blue-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                          : "bg-slate-900/40 border-slate-800/40 text-slate-600 text-[10px] cursor-default"
+                                      }`}
+                                      title={isSat && row.hora_salida_m ? "📸 Clic para ver foto de salida mañana" : ""}
+                                    >
+                                      <span>{isSat ? (row.hora_salida_m || "--:--:--") : "--"}</span>
+                                      {isSat && row.hora_salida_m && (row.foto_salida_m || row.foto_captura) && (
+                                        <Camera className="w-3 h-3 text-blue-400/80" />
+                                      )}
+                                    </button>
                                   </td>
+
                                   {/* Slot 3: Entrada Tarde */}
                                   <td className="py-2 px-2 text-center">
-                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
-                                      isSat
-                                        ? (row.hora_entrada_t ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                        : "bg-slate-900/40 border-slate-800/40 text-slate-600 text-[10px]"
-                                    }`}>
-                                      {isSat ? (row.hora_entrada_t || "--:--:--") : "--"}
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = row.foto_entrada_t || row.foto_captura;
+                                        if (url && row.hora_entrada_t && isSat) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${row.hora_entrada_t} (${row.fecha})`,
+                                            tipo: "ENTRADA TARDE",
+                                          });
+                                        }
+                                      }}
+                                      className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1 mx-auto transition-all ${
+                                        isSat
+                                          ? (row.hora_entrada_t ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-300 hover:scale-105 hover:ring-2 hover:ring-emerald-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                          : "bg-slate-900/40 border-slate-800/40 text-slate-600 text-[10px] cursor-default"
+                                      }`}
+                                      title={isSat && row.hora_entrada_t ? "📸 Clic para ver foto de entrada tarde" : ""}
+                                    >
+                                      <span>{isSat ? (row.hora_entrada_t || "--:--:--") : "--"}</span>
+                                      {isSat && row.hora_entrada_t && (row.foto_entrada_t || row.foto_captura) && (
+                                        <Camera className="w-3 h-3 text-emerald-400/80" />
+                                      )}
+                                    </button>
                                   </td>
+
                                   {/* Slot 4: Salida Tarde / Noche */}
                                   <td className="py-2 px-2 text-center">
-                                    <span className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border ${
-                                      isSat
-                                        ? (row.hora_salida_t ? "bg-blue-950/60 border-blue-500/50 text-blue-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                        : (row.hora_salida ? "bg-blue-950/60 border-blue-500/50 text-blue-300" : "bg-slate-900 border-slate-800 text-slate-500")
-                                    }`}>
-                                      {isSat ? (row.hora_salida_t || "--:--:--") : (row.hora_salida || "--:--:--")}
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = isSat ? (row.foto_salida_t || row.foto_salida || row.foto_captura) : (row.foto_salida || row.foto_captura);
+                                        const timeStr = isSat ? row.hora_salida_t : row.hora_salida;
+                                        if (url && timeStr) {
+                                          setZoomedImage({
+                                            url,
+                                            name: row.docente,
+                                            id: row.dni,
+                                            time: `${timeStr} (${row.fecha})`,
+                                            tipo: isSat ? "SALIDA TARDE" : "SALIDA NOCHE",
+                                          });
+                                        }
+                                      }}
+                                      className={`font-mono text-xs font-bold px-2.5 py-1.5 rounded-xl border flex items-center justify-center gap-1 mx-auto transition-all ${
+                                        isSat
+                                          ? (row.hora_salida_t ? "bg-blue-950/60 border-blue-500/50 text-blue-300 hover:scale-105 hover:ring-2 hover:ring-blue-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                          : (row.hora_salida ? "bg-blue-950/60 border-blue-500/50 text-blue-300 hover:scale-105 hover:ring-2 hover:ring-blue-400/50 cursor-pointer shadow" : "bg-slate-900 border-slate-800 text-slate-500 cursor-default")
+                                      }`}
+                                      title={((isSat ? row.hora_salida_t : row.hora_salida) && (isSat ? (row.foto_salida_t || row.foto_salida || row.foto_captura) : (row.foto_salida || row.foto_captura))) ? "📸 Clic para ver foto de salida" : ""}
+                                    >
+                                      <span>{isSat ? (row.hora_salida_t || "--:--:--") : (row.hora_salida || "--:--:--")}</span>
+                                      {((isSat ? row.hora_salida_t : row.hora_salida) && (isSat ? (row.foto_salida_t || row.foto_salida || row.foto_captura) : (row.foto_salida || row.foto_captura))) && (
+                                        <Camera className="w-3 h-3 text-blue-400/80" />
+                                      )}
+                                    </button>
                                   </td>
                                 </>
                               )}
@@ -6779,10 +6900,10 @@ export default function DashboardPage() {
                                       url: row.foto_captura,
                                       name: row.docente,
                                       id: row.dni,
-                                      time: row.hora_entrada || row.fecha,
+                                      time: `${row.hora_entrada || row.hora_entrada_m || "--:--"} (${row.fecha})`,
                                       tipo: row.estado,
                                     })}
-                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 transition-all cursor-pointer shadow"
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 transition-all cursor-pointer shadow hover:scale-110"
                                     title="Ver foto capturada en el biométrico"
                                   >
                                     <Camera className="w-3.5 h-3.5" />
@@ -6946,6 +7067,76 @@ export default function DashboardPage() {
           </div>
         </div>
       </footer>
+      {/* MODAL DE FOTO CAPTURADA EN BIOMÉTRICO (ZOOM FOTO) */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 transition-all animate-in fade-in duration-200"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-3xl p-5 max-w-md w-full shadow-2xl flex flex-col items-center gap-4 relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="w-full flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-inner">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-sm leading-tight">{zoomedImage.name}</h3>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                    <span className="text-purple-400 font-bold">DNI: {zoomedImage.id}</span>
+                    <span>•</span>
+                    <span className="text-emerald-300 font-bold">{zoomedImage.time}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setZoomedImage(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer shadow"
+                title="Cerrar ventana"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Imagen del Reconocimiento Facial */}
+            <div className="w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner flex items-center justify-center relative min-h-[260px]">
+              {zoomedImage.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={zoomedImage.url}
+                  alt={zoomedImage.name}
+                  className="w-full h-auto max-h-[380px] object-contain rounded-xl shadow-lg"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-slate-500 gap-2">
+                  <User className="w-12 h-12 stroke-[1.5]" />
+                  <p className="text-xs font-semibold">Foto no disponible</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer con información del marcaje */}
+            <div className="w-full flex items-center justify-between pt-1">
+              <span className={`text-[11px] font-black uppercase px-3 py-1 rounded-full border shadow-sm ${
+                zoomedImage.tipo?.includes("SALIDA")
+                  ? "bg-blue-600/20 text-blue-300 border-blue-500/30"
+                  : "bg-emerald-600/20 text-emerald-300 border-emerald-500/30"
+              }`}>
+                📸 {zoomedImage.tipo || "CAPTURADO EN BIOMÉTRICO"}
+              </span>
+              <button
+                onClick={() => setZoomedImage(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-1.5 rounded-xl border border-slate-700 transition-all cursor-pointer shadow"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
     </>
   );
